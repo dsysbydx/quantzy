@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from quantzy.backtest import (
+from quantzy.metrics import (
     annualized_vol,
     max_drawdown,
     sharpe_ratio,

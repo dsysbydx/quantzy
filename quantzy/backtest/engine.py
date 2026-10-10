@@ -1,26 +1,35 @@
 """Walk-forward backtest engine.
 
-Steps through time on a rebalance schedule. At each rebalance date it uses only data available
-up to that point (``asof``) to compute mu via an alpha and Sigma via a RiskModel, optimizes
-target weights against the current book net of transaction cost, then holds those weights until
-the next rebalance while accruing each period's portfolio return. The output is a return series
-plus a weight history that feeds :mod:`quantzy.backtest.metrics`.
+The engine is *tooling*: it supplies a clock and a simulated book, and asks the strategy the
+same question a production job asks, once per rebalance date. Every decision comes from
+:meth:`~quantzy.strategy.Strategy.decide`, so what is being tested here is the thing that
+would run live -- not a reimplementation of it.
+
+**Timing.** At rebalance date ``t`` the engine rebalances *before* accruing, because a
+signal's score at row ``t`` is already lagged to be tradeable at ``t``
+(:attr:`~quantzy.signals.base.Signal.lag`, default 1): it was computed from the close of
+``t-1``, so it sizes the book that earns ``t``. The risk model carries the same lag, so
+``mu`` and ``sigma`` rest on identical information. Nothing in a decision at ``t`` has seen
+any data dated ``t`` or later.
+
+The previous engine accrued first and rebalanced second, with the lag living implicitly in
+that statement order. It happened to be right, and nothing tested it. Here the lag is a
+declared property of each component and ``tests/test_signals.py`` asserts it.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from quantzy.construction.portfolio import Portfolio
+from quantzy.backtest.book import SimulatedBook
+from quantzy.data.bundle import DataBundle, as_bundle
 from quantzy.returns import to_returns
 
 if TYPE_CHECKING:
-    from quantzy.alpha.base import Alpha
-    from quantzy.optimize.base import BaseOptimizer
-    from quantzy.risk.base import RiskModel
+    from quantzy.strategy import Decision, Strategy
 
 
 @dataclass(slots=True)
@@ -28,15 +37,36 @@ class BacktestResult:
     """Output of a walk-forward run.
 
     Attributes:
-        returns: Per-period portfolio returns, net of estimated trading cost on rebalance days.
-        weights: Held weights through time (dates x tickers); the row for date ``t`` is the book
-            that earns ``returns[t]``.
-        rebalance_dates: The dates on which the optimizer was re-run.
+        returns: Per-period portfolio returns, net of estimated cost on rebalance days.
+        weights: Held weights through time (dates x tickers); the row for date ``t`` is the
+            book that earns ``returns[t]``.
+        nav: Account value through time, compounding ``returns``.
+        decisions: Every :class:`~quantzy.strategy.Decision` the strategy made, in order.
+            Keeping them is what lets you ask "what did it think on this date, and why?"
+            after the run -- and what a live run's replay check compares against.
     """
 
     returns: pd.Series
     weights: pd.DataFrame
-    rebalance_dates: pd.DatetimeIndex
+    nav: pd.Series
+    decisions: list[Decision] = field(default_factory=list)
+
+    @property
+    def rebalance_dates(self) -> pd.DatetimeIndex:
+        """The dates on which the optimizer was re-run."""
+        return pd.DatetimeIndex([d.asof for d in self.decisions])
+
+    def decision_at(self, asof: pd.Timestamp | str) -> Decision:
+        """The decision made on ``asof``.
+
+        Raises:
+            KeyError: If no rebalance happened on that date.
+        """
+        asof = pd.Timestamp(asof)
+        for d in self.decisions:
+            if d.asof == asof:
+                return d
+        raise KeyError(f"no rebalance on {asof.date()}; see .rebalance_dates")
 
 
 @dataclass(slots=True)
@@ -44,69 +74,66 @@ class WalkForwardBacktester:
     """Periodic-rebalance simulator.
 
     Args:
-        rebalance_every: Trading days between rebalances (~21 = monthly).
-        warmup: Minimum number of price rows required before the first rebalance. Must exceed
-            the alpha's longest lookback (e.g. ``Momentum.lookback``), or ``forecast`` will raise.
+        rebalance_every: Rows between rebalances (~21 = monthly).
+        warmup: Rows of history required before the first rebalance. ``None`` -- the default
+            -- takes :attr:`~quantzy.strategy.Strategy.min_history` from the strategy, so
+            the warmup tracks the signals actually being run instead of being a constant the
+            caller has to remember to raise alongside a longer lookback.
     """
 
     rebalance_every: int = 21
-    warmup: int = 252
+    warmup: int | None = None
 
     def run(
         self,
-        prices: pd.DataFrame,
-        alpha: Alpha,
-        risk_model: RiskModel,
-        optimizer: BaseOptimizer,
+        data: DataBundle | pd.DataFrame,
+        strategy: Strategy,
         *,
         nav: float = 100_000.0,
     ) -> BacktestResult:
-        """Simulate the strategy and return its return series + weight history.
+        """Simulate ``strategy`` over ``data`` and return its returns, weights and decisions.
 
-        ``alpha`` is any object exposing ``forecast(prices, asof=...)`` -- a single signal or an
-        :class:`~quantzy.alpha.combiner.AlphaCombiner`. The same ``optimizer`` (with its
-        constraints and cost model) is reused at every rebalance.
+        Raises:
+            ValueError: If the history is shorter than the warmup the strategy needs.
         """
-        if len(prices) <= self.warmup:
-            raise ValueError(f"need > {self.warmup} price rows for warmup, got {len(prices)}")
+        bundle = as_bundle(data)
+        warmup = self.warmup if self.warmup is not None else strategy.min_history
+        if len(bundle.index) <= warmup:
+            raise ValueError(
+                f"{strategy.name} needs > {warmup} rows of history "
+                f"({'explicit warmup' if self.warmup is not None else 'strategy.min_history'}), "
+                f"got {len(bundle.index)}"
+            )
 
-        asset_returns = to_returns(prices)
-        tickers = list(prices.columns)
+        asset_returns = to_returns(bundle.prices)
+        tickers = list(strategy.universe.tickers)
+        book = SimulatedBook(tickers=tickers, nav=nav)
 
-        # Rebalance on the warmup row, then every ``rebalance_every`` rows thereafter.
-        rebal_positions = range(self.warmup, len(prices), self.rebalance_every)
-        rebal_dates = {prices.index[i] for i in rebal_positions}
-
-        current = Portfolio.empty(tickers, nav=nav)
-        held = pd.Series(0.0, index=tickers)  # weights earning today's return
+        index = bundle.index
+        rebal_dates = set(index[warmup :: self.rebalance_every])
+        first_date = index[warmup]
 
         port_returns: dict[pd.Timestamp, float] = {}
         weight_rows: dict[pd.Timestamp, pd.Series] = {}
-        used_rebal: list[pd.Timestamp] = []
+        nav_rows: dict[pd.Timestamp, float] = {}
+        decisions: list[Decision] = []
 
-        # Walk from the first day we have weights to deploy (the warmup date) to the end.
-        first_date = prices.index[self.warmup]
         for date in asset_returns.index[asset_returns.index >= first_date]:
-            # Accrue the day's return on the book we were holding coming into ``date``.
-            day_ret = float((held * asset_returns.loc[date]).sum())
-
+            # Rebalance first: the score at ``date`` is lagged to be tradeable at ``date``,
+            # so it sizes the book that earns ``date``'s return.
+            cost = 0.0
             if date in rebal_dates:
-                mu = alpha.forecast(prices, asof=date)
-                sigma = risk_model.covariance(asset_returns.loc[:date])
-                result = optimizer.optimize(mu, sigma, current=current)
-                if result.trades.cost is not None:
-                    day_ret -= float(result.trades.cost)  # pay to trade into the new book
-                held = result.weights.reindex(tickers).fillna(0.0)
-                current = Portfolio(weights=held, nav=nav)
-                used_rebal.append(date)
+                decision = strategy.decide(bundle, asof=date, current=book.portfolio)
+                cost = book.apply(decision)
+                decisions.append(decision)
 
-            port_returns[date] = day_ret
-            weight_rows[date] = held
+            port_returns[date] = book.accrue(asset_returns.loc[date], cost=cost)
+            weight_rows[date] = book.weights.copy()
+            nav_rows[date] = book.nav
 
-        returns = pd.Series(port_returns, name="return").sort_index()
-        weights = pd.DataFrame(weight_rows).T.reindex(columns=tickers).sort_index()
         return BacktestResult(
-            returns=returns,
-            weights=weights,
-            rebalance_dates=pd.DatetimeIndex(used_rebal),
+            returns=pd.Series(port_returns, name="return").sort_index(),
+            weights=pd.DataFrame(weight_rows).T.reindex(columns=tickers).sort_index(),
+            nav=pd.Series(nav_rows, name="nav").sort_index(),
+            decisions=decisions,
         )

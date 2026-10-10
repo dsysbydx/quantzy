@@ -12,32 +12,23 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from quantzy.config import TRADING_DAYS
+from quantzy.risk.base import PanelRiskModel
 
 
-@dataclass(slots=True)
-class LedoitWolfCovariance:
+@dataclass(kw_only=True)
+class LedoitWolfCovariance(PanelRiskModel):
     """Ledoit-Wolf shrinkage toward a scaled-identity target.
 
     Args:
-        annualize: If True, scale the per-period covariance by ``trading_days``.
-        trading_days: Periods per year used for annualization.
         shrinkage: Optional manual intensity in [0, 1]. If None (default), the optimal
             intensity is estimated from the data (Ledoit-Wolf 2004).
     """
 
-    annualize: bool = True
-    trading_days: int = TRADING_DAYS
     shrinkage: float | None = None
 
-    def covariance(self, returns: pd.DataFrame, asof: pd.Timestamp | None = None) -> pd.DataFrame:
-        rets = returns if asof is None else returns.loc[:asof]
-        rets = rets.dropna(how="any")
-        n, p = rets.shape
-        if n < 2:
-            raise ValueError("need at least 2 return observations to estimate covariance")
-
-        x = rets.to_numpy()
+    def estimate(self, returns: pd.DataFrame) -> pd.DataFrame:
+        n, p = returns.shape
+        x = returns.to_numpy()
         x = x - x.mean(axis=0, keepdims=True)
         sample = (x.T @ x) / n  # MLE sample covariance (bias=True)
 
@@ -50,9 +41,7 @@ class LedoitWolfCovariance:
             delta = float(np.clip(self.shrinkage, 0.0, 1.0))
 
         shrunk = delta * target + (1.0 - delta) * sample
-        if self.annualize:
-            shrunk = shrunk * self.trading_days
-        return pd.DataFrame(shrunk, index=rets.columns, columns=rets.columns)
+        return pd.DataFrame(shrunk, index=returns.columns, columns=returns.columns)
 
     @staticmethod
     def _estimate_shrinkage(x, sample, target, n, p) -> float:

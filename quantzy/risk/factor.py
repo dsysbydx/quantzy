@@ -1,4 +1,4 @@
-"""Factor risk model -- stub conforming to the RiskModel protocol.
+"""Factor risk model -- stub conforming to the RiskModel interface.
 
 A factor model decomposes covariance as ``Sigma = B F B' + D`` where ``B`` are factor
 loadings, ``F`` the factor covariance, and ``D`` idiosyncratic variances. This keeps Sigma
@@ -12,14 +12,16 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from quantzy.risk.base import PanelRiskModel
 
-@dataclass(slots=True)
-class FactorRiskModel:
+
+@dataclass(kw_only=True)
+class FactorRiskModel(PanelRiskModel):
     """Placeholder factor risk model. See module docstring for the intended math."""
 
     factors: list[str] | None = None
 
-    def covariance(self, returns: pd.DataFrame, asof: pd.Timestamp | None = None) -> pd.DataFrame:
+    def estimate(self, returns: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError(
             "FactorRiskModel is a stub; use SampleCovariance or LedoitWolfCovariance for now."
         )
