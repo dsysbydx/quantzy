@@ -46,3 +46,60 @@ def noisy_prices():
         rets = rng.normal(drift, 0.006, size=len(dates))
         out[col] = 100.0 * np.exp(np.cumsum(rets))
     return pd.DataFrame(out, index=dates)
+
+
+@pytest.fixture
+def panel():
+    """Four assets, ~5.5y of business days, reproducible, with ordered drift.
+
+    Long enough to clear a 252-row momentum warmup and still leave several years to trade.
+    """
+    dates = pd.bdate_range("2015-01-01", periods=1400)
+    rng = np.random.default_rng(7)
+    spec = {"UP": (0.0012, 0.006), "MID": (0.0003, 0.006), "DOWN": (-0.0008, 0.006),
+            "CASH": (0.00008, 0.0004)}
+    return pd.DataFrame(
+        {c: 100.0 * np.exp(np.cumsum(rng.normal(mu, sd, len(dates))))
+         for c, (mu, sd) in spec.items()},
+        index=dates,
+    )
+
+
+@pytest.fixture
+def bundle(panel):
+    from quantzy.data.bundle import DataBundle
+
+    return DataBundle.build(panel)
+
+
+@pytest.fixture
+def universe(panel):
+    from quantzy.universe import Universe
+
+    return Universe.from_tickers(list(panel.columns))
+
+
+@pytest.fixture
+def make_strategy(universe):
+    """Factory for a complete strategy; override any piece per test."""
+    from quantzy.optimize import LinearCost, MeanVariance
+    from quantzy.optimize import constraints as C
+    from quantzy.risk import LedoitWolfCovariance
+    from quantzy.signals import Momentum
+    from quantzy.strategy import Strategy
+
+    def _make(signals=None, risk_model=None, optimizer=None, **kwargs):
+        return Strategy(
+            universe=universe,
+            signals=signals or [Momentum(lookback=252, skip=21)],
+            risk_model=risk_model or LedoitWolfCovariance(lookback=252),
+            optimizer=optimizer
+            or MeanVariance(
+                risk_aversion=8.0,
+                constraints=[C.budget(), C.long_only()],
+                cost_model=LinearCost(cost_bps=5.0),
+            ),
+            **kwargs,
+        )
+
+    return _make

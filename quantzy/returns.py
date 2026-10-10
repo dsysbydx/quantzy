@@ -31,3 +31,16 @@ def align(*frames: pd.DataFrame) -> list[pd.DataFrame]:
     for f in frames:
         common = f.index if common is None else common.intersection(f.index)
     return [f.loc[common].dropna(how="any") for f in frames]
+
+
+def forward_returns(prices: pd.DataFrame, horizon: int = 1) -> pd.DataFrame:
+    """Return earned from date ``t`` to ``t + horizon``, aligned at ``t``.
+
+    Deliberately forward-looking -- this is the *target* a signal is scored against, never an
+    input to one. Row ``t`` holds ``p[t+horizon]/p[t] - 1``, so pairing it with a score at row
+    ``t`` asks the honest question: does today's tradeable score predict the return that
+    follows? The last ``horizon`` rows are NaN.
+    """
+    if horizon < 1:
+        raise ValueError(f"horizon must be >= 1, got {horizon}")
+    return prices.shift(-horizon) / prices - 1.0
