@@ -1,10 +1,12 @@
-"""Core multi-asset book: 17 ETFs, class Sharpe priors, a small slow-trend tilt.
+"""Core multi-asset book: 17 ETFs, class Sharpe priors, slow-trend and VRP tilts.
 
 What it is
     Long-only mean-variance on 17 liquid ETFs and a T-bill sleeve, rebalanced daily, up to
-    1.3x gross. ``mu_i = vol_i * (SR_class + 0.05 * trend_i + 0.037 * ewmac_i)``: a
-    judgment-set Sharpe prior per asset class, plus two slow trend scores in Sharpe units,
-    price against its 200-day EMA and the 64/256 EMA crossover, splitting one trend budget.
+    1.3x gross. ``mu_i = vol_i * (SR_class + 0.05 * trend_i + 0.037 * ewmac_i + 0.091 *
+    vrp)``: a judgment-set Sharpe prior per asset class; two slow trend scores in Sharpe units,
+    price against its 200-day EMA and the 64/256 EMA crossover, splitting one trend budget;
+    and, on the 12 equity ETFs only, the variance risk premium (VIX^2 minus SPY's realized
+    variance, a 5-year z-score), one market-wide number.
 
 Evidence (``examples/research_trend_*.py``)
     * Risk model: the 5/20/60 EWMA blend forecast vol best (QLIKE); trend-scaled vol made it
@@ -18,6 +20,13 @@ Evidence (``examples/research_trend_*.py``)
       five-year period. In the book it is no better than EMA-200 (Sharpe 1.14 vs 1.13 from
       2010), so it shares the trend budget rather than replacing it. Faster crossovers and
       acceleration had no IC (``research_ewmac_accel.py``).
+    * VRP (``research_reentry.py``, ``research_vrp.py``): 1-day IC on SPY +0.023 (t 2.3,
+      held-out folds, 1993-2026), weaker before 2008 (t 1.1). Neither implied nor realized
+      variance predicts alone. Uncorrelated with trend (-0.01). Book Sharpe 1.06 -> 1.09,
+      flat for weights 0.5x-2x; most of the gain is 2008 and 2021, and it does not fix the
+      slow re-entry after a V-shaped crash (VRP was at -2 at the March 2020 low).
+    * Rejected: long-run vol in the risk model, VIX level, relative sector momentum (IC
+      t 4.8 but no gain in a long-only book), an expanding-history Sharpe prior (wrong sign).
     * Shorting the trend did not pay on ETFs (short leg Sharpe -0.15), so long-only.
     * Adding EMB/LQD (credit, prior 0.25) or 28 more ETFs did not improve the book.
 
@@ -27,20 +36,29 @@ Where the Sharpe comes from
     Much of the diversification came from bonds hedging equities (2008-2021), which has not
     held since 2022; expect a forward Sharpe nearer 0.5-0.7 than the backtest's ~1.
 
-Snapshot (2008-09-10 .. 2026-10-14, 5 bp trades, borrow at T-bill + 50 bp)
-    return 11.4%, vol 10.7%, Sharpe 1.06 (train 1.11 / test 1.03, split 2017-07-26),
-    max drawdown -18.2% (Sep-Oct 2008), turnover ~0.7x a year, gross ~1.29x.
-    The 64/256 crossover needs history to 2008-09; the EMA-200-only book over the same dates
-    had Sharpe 1.07 and max drawdown -16.6%, and from 2008-05 Sharpe 0.99, drawdown -25.3%.
+Snapshot (2008-09-10 .. 2026-10-16, 5 bp trades, borrow at T-bill + 50 bp)
+    return 12.3%, vol 11.2%, Sharpe 1.09 (train 1.13 / test 1.07, split 2017-07-26),
+    max drawdown -16.0% (Mar-Sep 2022), turnover ~1.0x a year, gross ~1.29x.
+    Without VRP: Sharpe 1.06, drawdown -18.2% (Sep-Oct 2008), turnover 0.7x. The 64/256
+    crossover needs history to 2008-09; the EMA-200-only book over the same dates had Sharpe
+    1.07 and max drawdown -16.6%, and from 2008-05 Sharpe 0.99, drawdown -25.3%.
     Sharpe is return over vol with no cash deduction.
 """
 
 from __future__ import annotations
 
+import pandas as pd
+
 from quantzy.config import TRADING_DAYS
 from quantzy.data import CachedReader, DataBundle, YFinanceReader
 from quantzy.portfolio import PortfolioConfig
-from quantzy.signals import EwmacTrend, Identity, SharpePrior, VolScaledTrend
+from quantzy.signals import (
+    EwmacTrend,
+    Identity,
+    SharpePrior,
+    VarianceRiskPremium,
+    VolScaledTrend,
+)
 from quantzy.signals.base import Signal
 from quantzy.strategy import Strategy
 from quantzy.universe import Asset, Universe
@@ -55,6 +73,7 @@ CLASSES = {
     "US dollar": ["UUP"],
 }
 RISKY = [t for ts in CLASSES.values() for t in ts]
+EQUITY = [*CLASSES["US sectors"], *CLASSES["equity index"]]
 UNIVERSE = Universe(
     name=NAME,
     assets=[Asset(t, t, "etf") for t in RISKY]
@@ -91,17 +110,26 @@ ALPHAS: dict[str, tuple[Signal, float]] = {
     "trend": (VolScaledTrend(200, exclude=(CASH,), ma="ema", ewm_tol=EWM_TOL,
                              normalizer=Identity()), 0.05),
     "ewmac": (EwmacTrend(64, exclude=(CASH,), ewm_tol=EWM_TOL, normalizer=Identity()), 0.037),
+    # The variance risk premium on the equity ETFs; its weight gives the score the same
+    # train-window dispersion as the whole trend budget (``research_vrp.py``).
+    "vrp": (VarianceRiskPremium(tuple(EQUITY), normalizer=Identity()), 0.091),
 }
 
 
 def load(start: str = START) -> DataBundle:
-    """Prices for the 17 ETFs plus a T-bill sleeve compounded from the ^IRX yield."""
-    raw = CachedReader(YFinanceReader()).history([*RISKY, "^IRX"], start=start)
+    """Prices for the 17 ETFs plus a T-bill sleeve compounded from the ^IRX yield, and the
+    VIX and SPY closes the variance risk premium reads (as panels, the same in every column).
+    """
+    raw = CachedReader(YFinanceReader()).history([*RISKY, "^IRX", "^VIX", "SPY"], start=start)
     yld = raw["^IRX"].ffill() / 100.0
     cash_ret = ((1.0 + yld) ** (1.0 / TRADING_DAYS) - 1.0).shift(1).fillna(0.0)
     prices = raw[RISKY].copy()
     prices[CASH] = (1.0 + cash_ret).cumprod()
-    return DataBundle.build(prices)
+
+    def broadcast(s: pd.Series) -> pd.DataFrame:
+        return pd.DataFrame({t: s for t in prices.columns}, index=prices.index)
+
+    return DataBundle.build(prices, vix=broadcast(raw["^VIX"]), market=broadcast(raw["SPY"]))
 
 
 def build(alphas: dict[str, tuple[Signal, float]] | None = None,
@@ -134,4 +162,9 @@ def warmup(bundle: DataBundle, strategy: Strategy | None = None) -> int:
     """
     strategy = strategy or build()
     first = bundle.prices[RISKY].apply(lambda s: bundle.index.get_loc(s.first_valid_index()))
-    return int(first.max()) + strategy.min_history
+    # Market-wide inputs (VIX, SPY) start with the bundle, not with the youngest ETF, so a
+    # signal reading them only needs its per-asset history after that ETF's inception.
+    per_asset = max([strategy.risk_model.min_history]
+                    + [getattr(s, "asset_history", s.min_history) + s.lag + 1
+                       for s in strategy.signals.values()])
+    return int(max(first.max() + per_asset, strategy.min_history))

@@ -13,15 +13,22 @@ from quantzy.strategies import REGISTRY, core_multiasset, get
 
 @pytest.fixture(scope="module")
 def core_bundle():
-    """Synthetic prices for the core universe: trending risky assets and a T-bill."""
+    """Synthetic data for the core universe: trending risky assets, a T-bill, and the VIX and
+    SPY panels the variance risk premium reads. Long enough for its 5-year z-score."""
     rng = np.random.default_rng(7)
-    dates = pd.bdate_range("2015-01-01", periods=700)
+    dates = pd.bdate_range("2015-01-01", periods=1500)
     drift = rng.normal(0.0002, 0.0004, len(core_multiasset.RISKY))
     rets = rng.normal(drift, 0.01, size=(len(dates), len(drift)))
     px = pd.DataFrame(100 * np.cumprod(1 + rets, axis=0), index=dates,
                       columns=core_multiasset.RISKY)
     px[core_multiasset.CASH] = 1.0001 ** np.arange(len(dates))
-    return DataBundle.build(px)
+    spy = 100 * np.cumprod(1 + rng.normal(0.0003, 0.01, len(dates)))
+    vix = 18 + 5 * np.sin(np.arange(len(dates)) / 50) + rng.normal(0, 1, len(dates))
+
+    def wide(x):
+        return pd.DataFrame({c: x for c in px.columns}, index=dates)
+
+    return DataBundle.build(px, vix=wide(vix), market=wide(spy))
 
 
 class TestRegistry:
