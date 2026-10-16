@@ -71,6 +71,11 @@ SELLOFFS = {"2008-09 .. 2009-03": ("2008-09-01", "2009-03-09"),
             "2022-01 .. 2022-10": ("2022-01-03", "2022-10-12")}
 
 
+def forecast_scalar(n: int) -> float:
+    """Carver's scalar, or for other speeds its sqrt rule from the 64/256 value."""
+    return CARVER_SCALAR.get(n, CARVER_SCALAR[64] * (64 / n) ** 0.5)
+
+
 def ewmac_forecasts(px: pd.DataFrame, speeds: tuple[int, ...], vol_window: int,
                     ewm_tol: float) -> dict[int, pd.DataFrame]:
     """Uncapped EWMAC forecasts per speed, in Carver units / 10 (average |f| near 1)."""
@@ -78,7 +83,7 @@ def ewmac_forecasts(px: pd.DataFrame, speeds: tuple[int, ...], vol_window: int,
     out = {}
     for n in speeds:
         fast, slow = ema(px, n), ema(px, 4 * n)
-        f = (fast - slow) / price_vol.where(price_vol > 0) * CARVER_SCALAR[n] / 10.0
+        f = (fast - slow) / price_vol.where(price_vol > 0) * forecast_scalar(n) / 10.0
         # mask the slow EMA's burn-in, as TrendStrength does through min_history
         burn = px.notna().cumsum() <= ewm_min_history(4 * n, ewm_tol)
         out[n] = f.mask(burn)

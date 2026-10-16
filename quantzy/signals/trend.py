@@ -88,3 +88,63 @@ class VolScaledTrend(TrendStrength):
     def raw(self, data: DataBundle) -> pd.DataFrame:
         vol = realized_vol(data.prices, self.vol_window, annualize=True)
         return super().raw(data) * vol
+
+
+@dataclass
+class EwmacTrend(Signal):
+    """Carver's EWMAC crossover in return units: ``clip(f, +/-cap) * annualized vol``.
+
+    ``f = scalar / 10 * (EMA_fast - EMA_slow) / (price * daily vol)``. The gap between the two
+    EMAs is measured in daily price vols, and the forecast scalar brings the average ``|f|``
+    near 1 (Carver's forecasts divided by 10). Capped at ``+/-cap``, then multiplied by
+    annualized vol so that, with ``normalizer=Identity()``, a weight ``k`` adds ``k * f`` to
+    the asset's Sharpe ratio, as :class:`VolScaledTrend` does.
+
+    Args:
+        fast: Span of the fast EMA.
+        slow: Span of the slow EMA; ``None`` means ``4 * fast``, Carver's ratio.
+        scalar: Forecast scalar; ``None`` uses Carver's 1.87 for 64/256, scaled by
+            ``sqrt(64 / fast)`` for other speeds (his published values follow that rule).
+        cap: Cap on ``|f|``.
+        vol_window: Trailing window for the daily vol.
+        exclude: Tickers to leave unscored (NaN), e.g. a cash sleeve.
+        ewm_tol: Seed influence the slow EMA may retain at its first trusted row.
+    """
+
+    name: ClassVar[str] = "ewmac"
+
+    fast: int = 64
+    slow: int | None = None
+    scalar: float | None = None
+    cap: float = 2.0
+    vol_window: int = 60
+    exclude: tuple[str, ...] = ()
+    ewm_tol: float = 1e-9
+
+    def __post_init__(self) -> None:
+        if self.fast < 1 or self.slow_span <= self.fast:
+            raise ValueError(f"need 1 <= fast < slow, got {self.fast}, {self.slow_span}")
+        if self.cap <= 0 or self.vol_window < 2:
+            raise ValueError(f"need cap > 0 and vol_window >= 2, got {self.cap}, "
+                             f"{self.vol_window}")
+
+    @property
+    def slow_span(self) -> int:
+        return 4 * self.fast if self.slow is None else self.slow
+
+    @property
+    def forecast_scalar(self) -> float:
+        return 1.87 * np.sqrt(64 / self.fast) if self.scalar is None else self.scalar
+
+    def raw(self, data: DataBundle) -> pd.DataFrame:
+        px = data.prices
+        price_vol = px * realized_vol(px, self.vol_window)
+        gap = ema(px, self.fast) - ema(px, self.slow_span)
+        f = (gap / price_vol.where(price_vol > 0) * self.forecast_scalar / 10.0)
+        out = f.clip(-self.cap, self.cap) * realized_vol(px, self.vol_window, annualize=True)
+        out[[c for c in self.exclude if c in out.columns]] = np.nan
+        return out
+
+    @property
+    def min_history(self) -> int:
+        return max(ewm_min_history(self.slow_span, self.ewm_tol), self.vol_window + 1)

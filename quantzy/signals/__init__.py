@@ -19,7 +19,7 @@ from quantzy.signals.normalize import (
 )
 from quantzy.signals.prior import SharpePrior
 from quantzy.signals.pullback import TrendPullback
-from quantzy.signals.trend import TrendStrength, VolScaledTrend
+from quantzy.signals.trend import EwmacTrend, TrendStrength, VolScaledTrend
 from quantzy.signals.value import Value
 
 __all__ = [
@@ -30,6 +30,7 @@ __all__ = [
     "TrendPullback",
     "TrendStrength",
     "VolScaledTrend",
+    "EwmacTrend",
     "SharpePrior",
     "ema",
     "sma",

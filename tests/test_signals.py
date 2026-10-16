@@ -17,6 +17,7 @@ import pytest
 from quantzy.data.bundle import DataBundle
 from quantzy.signals import (
     EmaSpread,
+    EwmacTrend,
     Identity,
     Momentum,
     SharpePrior,
@@ -46,6 +47,9 @@ ALL_SIGNALS = [
     TrendStrength(window=40, vol_window=20, ma="ema", normalizer=Identity()),
     VolScaledTrend(window=40, vol_window=20, ma="ema", normalizer=Identity()),
     SharpePrior({"A": 0.3}, vol_window=20, normalizer=Identity()),
+    EwmacTrend(fast=8, vol_window=20, normalizer=Identity()),
+    EwmacTrend(fast=4, slow=24, scalar=5.0, cap=1.5, exclude=("CASH",),
+               normalizer=Identity()),
 ]
 
 IDS = [f"{type(s).__name__}{sorted(s.params().items())}" for s in ALL_SIGNALS]
