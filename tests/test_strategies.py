@@ -13,8 +13,9 @@ from quantzy.strategies import REGISTRY, core_multiasset, get
 
 @pytest.fixture(scope="module")
 def core_bundle():
-    """Synthetic data for the core universe: trending risky assets, a T-bill, and the VIX and
-    SPY panels the variance risk premium reads. Long enough for its 5-year z-score."""
+    """Synthetic data for the core universe: trending risky assets, a T-bill, the VIX and SPY
+    panels the variance risk premium reads, and Treasury carry. Long enough for VRP's 5-year
+    z-score."""
     rng = np.random.default_rng(7)
     dates = pd.bdate_range("2015-01-01", periods=1500)
     drift = rng.normal(0.0002, 0.0004, len(core_multiasset.RISKY))
@@ -28,7 +29,10 @@ def core_bundle():
     def wide(x):
         return pd.DataFrame({c: x for c in px.columns}, index=dates)
 
-    return DataBundle.build(px, vix=wide(vix), market=wide(spy))
+    carry = pd.DataFrame(np.nan, index=dates, columns=px.columns)
+    carry["IEF"], carry["TLT"] = 0.01, 0.015
+
+    return DataBundle.build(px, vix=wide(vix), market=wide(spy), carry=carry)
 
 
 class TestRegistry:
