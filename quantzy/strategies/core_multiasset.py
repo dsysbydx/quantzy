@@ -1,9 +1,10 @@
-"""Core multi-asset book: 17 ETFs, class Sharpe priors, a small EMA-200 trend tilt.
+"""Core multi-asset book: 17 ETFs, class Sharpe priors, a small slow-trend tilt.
 
 What it is
     Long-only mean-variance on 17 liquid ETFs and a T-bill sleeve, rebalanced daily, up to
-    1.3x gross. ``mu_i = vol_i * (SR_class + 0.1 * trend_i)``: a judgment-set Sharpe prior
-    per asset class, plus the EMA-200 trend score in Sharpe units.
+    1.3x gross. ``mu_i = vol_i * (SR_class + 0.05 * trend_i + 0.037 * ewmac_i)``: a
+    judgment-set Sharpe prior per asset class, plus two slow trend scores in Sharpe units,
+    price against its 200-day EMA and the 64/256 EMA crossover, splitting one trend budget.
 
 Evidence (``examples/research_trend_*.py``)
     * Risk model: the 5/20/60 EWMA blend forecast vol best (QLIKE); trend-scaled vol made it
@@ -12,6 +13,11 @@ Evidence (``examples/research_trend_*.py``)
       +0.008 (t 1.2) on these 17 ETFs, +0.012 (t 1.9) on 45. Positive in 8 of 9 asset
       groups, strongest in commodities and currencies, mostly from before 2010.
     * k = 0.1 matches the IC (Grinold) and beat 0, 0.2 and 0.3 in both train and test.
+    * EWMAC 64/256 (``research_ewmac_slow.py``): IC +0.018 (t 2.7) on the same cells where
+      EMA-200 has +0.006 (t 0.9), on a plateau from 48/192 to 128/512, positive in every
+      five-year period. In the book it is no better than EMA-200 (Sharpe 1.14 vs 1.13 from
+      2010), so it shares the trend budget rather than replacing it. Faster crossovers and
+      acceleration had no IC (``research_ewmac_accel.py``).
     * Shorting the trend did not pay on ETFs (short leg Sharpe -0.15), so long-only.
     * Adding EMB/LQD (credit, prior 0.25) or 28 more ETFs did not improve the book.
 
@@ -21,9 +27,11 @@ Where the Sharpe comes from
     Much of the diversification came from bonds hedging equities (2008-2021), which has not
     held since 2022; expect a forward Sharpe nearer 0.5-0.7 than the backtest's ~1.
 
-Snapshot (2008-05-12 .. 2026-10-14, 5 bp trades, borrow at T-bill + 50 bp)
-    return 10.7%, vol 10.8%, Sharpe 0.99 (train 0.92 / test 1.05, split 2017-07-26),
-    max drawdown -25.3%, turnover ~0.8x a year, gross ~1.26x.
+Snapshot (2008-09-10 .. 2026-10-14, 5 bp trades, borrow at T-bill + 50 bp)
+    return 11.4%, vol 10.7%, Sharpe 1.06 (train 1.11 / test 1.03, split 2017-07-26),
+    max drawdown -18.2% (Sep-Oct 2008), turnover ~0.7x a year, gross ~1.29x.
+    The 64/256 crossover needs history to 2008-09; the EMA-200-only book over the same dates
+    had Sharpe 1.07 and max drawdown -16.6%, and from 2008-05 Sharpe 0.99, drawdown -25.3%.
     Sharpe is return over vol with no cash deduction.
 """
 
@@ -32,7 +40,7 @@ from __future__ import annotations
 from quantzy.config import TRADING_DAYS
 from quantzy.data import CachedReader, DataBundle, YFinanceReader
 from quantzy.portfolio import PortfolioConfig
-from quantzy.signals import Identity, SharpePrior, VolScaledTrend
+from quantzy.signals import EwmacTrend, Identity, SharpePrior, VolScaledTrend
 from quantzy.signals.base import Signal
 from quantzy.strategy import Strategy
 from quantzy.universe import Asset, Universe
@@ -77,8 +85,12 @@ PORTFOLIO = PortfolioConfig(
 
 ALPHAS: dict[str, tuple[Signal, float]] = {
     "prior": (SharpePrior(PRIOR_SR, normalizer=Identity()), 1.0),
+    # The trend budget (k = 0.1 for EMA-200 alone) is split in half between price against its
+    # 200-day EMA and the slow 64/256 crossover. The EWMAC weight is half of 0.074, which gives
+    # its score the same train-window dispersion as EMA-200's at 0.1.
     "trend": (VolScaledTrend(200, exclude=(CASH,), ma="ema", ewm_tol=EWM_TOL,
-                             normalizer=Identity()), 0.1),
+                             normalizer=Identity()), 0.05),
+    "ewmac": (EwmacTrend(64, exclude=(CASH,), ewm_tol=EWM_TOL, normalizer=Identity()), 0.037),
 }
 
 

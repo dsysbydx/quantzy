@@ -193,7 +193,7 @@ _P = core.PORTFOLIO
 PORTFOLIO = {"ra": _P.risk_aversion, "lev": _P.max_leverage, "cap": _P.max_position,
              "cap_of": _P.position_cap_of, "ca": _P.cost_aversion,
              "hls": tuple(_P.risk_halflives), "vol": None}
-ALPHA = {"prior": "by class", "spec": ("ema", 200), "k": core.ALPHAS["trend"][1]}
+ALPHA = {"prior": "by class", "spec": ("ema", 200), "k": 0.1}  # EMA-200 as the only trend
 SELECTED = {**PORTFOLIO, **ALPHA}
 
 
