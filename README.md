@@ -72,6 +72,8 @@ Two things make the production slice trustworthy:
 | `quantzy.metrics`      | shared     | Sharpe, drawdown, turnover — scores any return series |
 | `quantzy.backtest`     | *tooling*  | `WalkForwardBacktester`, `SimulatedBook` |
 | `quantzy.research`     | *tooling*  | `information_coefficient`, `ic_decay`, `holdout_tune` |
+| `quantzy.portfolio`    | shared     | `PortfolioConfig`: book-level settings shared by every alpha |
+| `quantzy.strategies`   | **saved**  | Strategies a production job may run, e.g. `core_multiasset` |
 
 `backtest` and `research` are tooling: nothing in them is on the path a live run takes.
 Production imports `strategy`, `data`, `signals`, `risk`, `optimize`, `construction` — and
@@ -92,6 +94,30 @@ run fetches from Yahoo Finance and caches to `.cache/` (parquet); later runs wor
 
 All three examples import their strategy from `examples/strategy_def.py`. That is the point:
 the strategy being researched is the strategy being backtested is the strategy being traded.
+
+## Saved strategies
+
+A saved strategy lives in `quantzy/strategies/<name>.py` and is the only thing a production
+job runs. It keeps two kinds of decision apart:
+
+```python
+from quantzy.strategies import core_multiasset as core
+
+core.ALPHAS      # {name: (signal, weight)}: what to own, blended into mu
+core.PORTFOLIO   # PortfolioConfig: risk aversion, leverage, caps, costs, risk model
+core.build()     # the Strategy; core.load() fetches its data
+```
+
+Portfolio settings are chosen once for the book. Alphas come and go. To test a candidate,
+keep `PORTFOLIO` fixed and compare against the saved book:
+
+```python
+candidate = core.build(alphas={**core.ALPHAS, "value": (Value(window=756), 0.1)})
+```
+
+Judge it on its IC (interleaved folds, `chunk_folds` + `newey_west_t`) and on the Sharpe it
+adds over `core.build()`, not on the book's total. Promote it by editing `ALPHAS`, in its own
+commit, and update the snapshot in the module docstring.
 
 ## Writing a signal
 

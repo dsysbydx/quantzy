@@ -9,8 +9,9 @@ neither is on the path a live run takes.
 """
 
 from quantzy.config import StrategyConfig
+from quantzy.portfolio import PortfolioConfig
 from quantzy.strategy import Decision, Strategy
-from quantzy.universe import Asset, Universe, default_etf_universe
+from quantzy.universe import Asset, Universe, default_etf_universe, sector_etf_universe
 
 __version__ = "0.1.0"
 
@@ -18,8 +19,10 @@ __all__ = [
     "Strategy",
     "Decision",
     "StrategyConfig",
+    "PortfolioConfig",
     "Asset",
     "Universe",
     "default_etf_universe",
+    "sector_etf_universe",
     "__version__",
 ]
