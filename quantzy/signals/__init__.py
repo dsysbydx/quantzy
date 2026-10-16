@@ -21,6 +21,7 @@ from quantzy.signals.prior import SharpePrior
 from quantzy.signals.pullback import TrendPullback
 from quantzy.signals.trend import EwmacTrend, TrendStrength, VolScaledTrend
 from quantzy.signals.value import Value
+from quantzy.signals.vrp import VarianceRiskPremium
 
 __all__ = [
     "Signal",
@@ -32,6 +33,7 @@ __all__ = [
     "VolScaledTrend",
     "EwmacTrend",
     "SharpePrior",
+    "VarianceRiskPremium",
     "ema",
     "sma",
     "realized_vol",

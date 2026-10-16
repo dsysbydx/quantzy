@@ -25,6 +25,7 @@ from quantzy.signals import (
     TrendPullback,
     TrendStrength,
     Value,
+    VarianceRiskPremium,
     VolScaledTrend,
     ZScore,
     ewm_min_history,
@@ -315,3 +316,54 @@ class TestTrendStrength:
         assert TrendStrength(window=200, ma="ema").min_history == ewm_min_history(200, 1e-9)
         with pytest.raises(ValueError, match="ma"):
             TrendStrength(ma="wma")
+
+
+class TestVarianceRiskPremium:
+    """A market-wide view built from the ``vix`` and ``market`` panels of the bundle."""
+
+    @staticmethod
+    def _bundle(panel: pd.DataFrame) -> DataBundle:
+        rng = np.random.default_rng(11)
+        n = len(panel)
+        market = 100.0 * np.exp(np.cumsum(rng.normal(0.0003, 0.01, n)))
+        vix = 18.0 + 6.0 * np.sin(np.arange(n) / 40.0) + rng.normal(0, 1.0, n)
+        wide = lambda x: pd.DataFrame({c: x for c in panel.columns}, index=panel.index)  # noqa: E731
+        return DataBundle.build(panel, vix=wide(vix), market=wide(market))
+
+    SIGNAL = dict(assets=("UP", "MID"), z_window=300, normalizer=Identity())
+
+    def test_view_only_on_assets_and_common_z(self, panel):
+        b = self._bundle(panel)
+        sig = VarianceRiskPremium(**self.SIGNAL)
+        raw = sig.raw(b).iloc[-1]
+        assert np.isnan(raw["DOWN"]) and np.isnan(raw["CASH"])
+        z = sig.premium(b).iloc[-1]
+        assert -2.0 <= z <= 2.0
+        vol = b.prices[["UP", "MID"]].pct_change().iloc[-60:].std(ddof=1) * np.sqrt(252)
+        np.testing.assert_allclose(raw[["UP", "MID"]].to_numpy(), (z * vol).to_numpy())
+
+    def test_causal_and_min_history_window(self, panel):
+        b = self._bundle(panel)
+        sig = VarianceRiskPremium(**self.SIGNAL)
+        asof = b.index[900]
+        full = sig.scores(b).loc[asof]
+        pd.testing.assert_series_equal(
+            full, VarianceRiskPremium(**self.SIGNAL).scores(b.upto(asof)).loc[asof],
+            check_names=False)
+        window = sig.min_history + sig.lag + 1
+        np.testing.assert_allclose(
+            VarianceRiskPremium(**self.SIGNAL).latest(b.upto(asof).tail(window)).to_numpy(),
+            full.to_numpy(), atol=1e-9)
+
+    def test_future_inputs_cannot_change_the_past(self, panel):
+        b = self._bundle(panel)
+        asof = b.index[900]
+        later = b.index > asof
+        bumped = {k: b[k].copy() for k in ("vix", "market")}
+        for p in bumped.values():
+            p.loc[later] *= 3.0
+        px = b.prices.copy()
+        px.loc[later] *= 3.0
+        after = VarianceRiskPremium(**self.SIGNAL).scores(DataBundle.build(px, **bumped))
+        pd.testing.assert_series_equal(VarianceRiskPremium(**self.SIGNAL).scores(b).loc[asof],
+                                       after.loc[asof], check_names=False)
