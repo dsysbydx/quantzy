@@ -16,6 +16,7 @@ import pytest
 
 from quantzy.data.bundle import DataBundle
 from quantzy.signals import (
+    CarrySharpePrior,
     EmaSpread,
     EwmacTrend,
     Identity,
@@ -367,3 +368,45 @@ class TestVarianceRiskPremium:
         after = VarianceRiskPremium(**self.SIGNAL).scores(DataBundle.build(px, **bumped))
         pd.testing.assert_series_equal(VarianceRiskPremium(**self.SIGNAL).scores(b).loc[asof],
                                        after.loc[asof], check_names=False)
+
+
+class TestCarrySharpePrior:
+    """The judgment prior, moved toward carry / vol for chosen assets only."""
+
+    @staticmethod
+    def _bundle(panel: pd.DataFrame) -> DataBundle:
+        carry = pd.DataFrame(np.nan, index=panel.index, columns=panel.columns)
+        carry["MID"] = np.linspace(-0.01, 0.03, len(panel))
+        carry.iloc[:10, carry.columns.get_loc("MID")] = np.nan
+        return DataBundle.build(panel, carry=carry)
+
+    def test_blend_and_fallback(self, panel):
+        b = self._bundle(panel)
+        sig = CarrySharpePrior({"UP": 0.3, "MID": 0.25}, carry_vol={"MID": 0.1},
+                               carry_weight=0.5, normalizer=Identity())
+        sr = sig.sharpe(b)
+        c = b["carry"]["MID"]
+        np.testing.assert_allclose(sr["MID"].iloc[10:], 0.5 * c.iloc[10:] / 0.1 + 0.5 * 0.25)
+        assert (sr["MID"].iloc[:10] == 0.25).all(), "missing carry falls back to the prior"
+        assert (sr["UP"] == 0.3).all() and sr["DOWN"].isna().all()
+
+    def test_zero_weight_is_the_plain_prior(self, panel):
+        b = self._bundle(panel)
+        plain = SharpePrior({"UP": 0.3, "MID": 0.25}, normalizer=Identity()).raw(b)
+        carry = CarrySharpePrior({"UP": 0.3, "MID": 0.25}, carry_vol={"MID": 0.1},
+                                 carry_weight=0.0, normalizer=Identity()).raw(b)
+        pd.testing.assert_frame_equal(plain, carry)
+
+    def test_causal(self, panel):
+        b = self._bundle(panel)
+        kw = dict(sr={"MID": 0.25}, carry_vol={"MID": 0.1}, normalizer=Identity())
+        asof = b.index[900]
+        full = CarrySharpePrior(**kw).scores(b).loc[asof]
+        pd.testing.assert_series_equal(full, CarrySharpePrior(**kw).scores(b.upto(asof)).loc[asof],
+                                       check_names=False)
+
+    def test_rejects_bad_settings(self):
+        with pytest.raises(ValueError, match="carry_weight"):
+            CarrySharpePrior(carry_weight=1.5)
+        with pytest.raises(ValueError, match="carry_vol"):
+            CarrySharpePrior(carry_vol={"A": 0.0})
