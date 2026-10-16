@@ -33,6 +33,10 @@ Evidence (``examples/research_trend_*.py``)
     * Kept at 0.30: the equity prior. 100 years of sector data say 0.38-0.51, but 0.35-0.40
       added risk without Sharpe (``research_prior_check.py``, ``research_equity_prior.py``).
       CAPE-type valuation forecasts only at 5-10 years (``research_shiller_valuation.py``).
+    * Trading (``research_execution_cost.py``): the optimizer's 5 bp x 48 penalty, charged on
+      cash too, is a smoothing band, not a cost estimate. Trading closer to the daily target
+      lowered Sharpe at every looser setting (frictionless: 0.96 at 24x turnover). Costs
+      charged to returns use per-ETF estimates instead.
     * Rejected: long-run vol in the risk model, VIX level, relative sector momentum (IC
       t 4.8 but no gain in a long-only book), an expanding-history Sharpe prior (wrong sign).
     * Shorting the trend did not pay on ETFs (short leg Sharpe -0.15), so long-only.
@@ -44,11 +48,12 @@ Where the Sharpe comes from
     Much of the diversification came from bonds hedging equities (2008-2021), which has not
     held since 2022; expect a forward Sharpe nearer 0.5-0.7 than the backtest's ~1.
 
-Snapshot (2008-09-10 .. 2026-10-16, 5 bp trades, borrow at T-bill + 50 bp)
-    return 12.8%, vol 11.2% (train 9.8% / test 12.5%), Sharpe 1.13 (train 1.13 / test 1.14,
-    split 2017-07-26), max drawdown -15.9% (Mar-Sep 2022), turnover ~1.0x a year, gross
-    ~1.28x. With a fixed Treasury prior: Sharpe 1.09 (test 1.07). Without VRP as well: Sharpe
-    1.06, drawdown -18.2% (Sep-Oct 2008), turnover 0.7x. The 64/256
+Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bill + 50 bp)
+    return 12.9%, vol 11.2% (train 9.8% / test 12.5%), Sharpe 1.13 (train 1.14 / test 1.14,
+    split 2017-07-26), max drawdown -15.9% (Mar-Sep 2022), turnover ~1.0x a year, cost
+    ~0.04% a year, gross ~1.28x. Charged a flat 5 bp, as before: Sharpe 1.13 (1.126 against
+    1.132), cost 0.10% a year. With a fixed Treasury prior: Sharpe 1.09 (test 1.07). Without
+    VRP as well: Sharpe 1.06, drawdown -18.2% (Sep-Oct 2008), turnover 0.7x. The 64/256
     crossover needs history to 2008-09; the EMA-200-only book over the same dates had Sharpe
     1.07 and max drawdown -16.6%, and from 2008-05 Sharpe 0.99, drawdown -25.3%.
     Sharpe is return over vol with no cash deduction.
@@ -105,13 +110,21 @@ CARRY_VOL = {"IEF": 0.07, "TLT": 0.14}
 #: Seed influence an EMA may keep at its first trusted row; 0.05 needs ~300 rows of history.
 EWM_TOL = 0.05
 
+#: One-way cost charged per trade (commission plus half-spread, IBKR-like), in bp. An estimate
+#: to check against real fills. The T-bill sleeve is not traded, so it is free.
+EXECUTION_COST_BPS = {**{t: 2.0 for t in [*CLASSES["US sectors"], "EFA", "EEM"]},
+                      **{t: 1.0 for t in ("QQQ", "GLD", "IEF", "TLT")}, "DBC": 5.0, "UUP": 5.0}
+
 PORTFOLIO = PortfolioConfig(
     risk_aversion=1.5,  # ~10% vol with these alphas; watch the 8-12% band as alphas change
     max_leverage=1.3,
     max_position=0.2,
     position_cap_of="book",
     cost_bps=5.0,
-    cost_aversion=48.0,  # set for slow alphas: a trade must pay back within about a week
+    # cost_bps x cost_aversion is a smoothing penalty, not the cost charged: trading closer to
+    # the noisy daily target lowered Sharpe at every looser setting tried.
+    cost_aversion=48.0,
+    execution_cost_bps=EXECUTION_COST_BPS,
     borrow_spread_bps=50.0,
     risk_halflives=(5, 20, 60),
 )
