@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -39,7 +41,19 @@ class CachedReader:
     ) -> pd.DataFrame:
         path = self._key(tickers, start, end, field)
         if path.exists():
-            return pd.read_parquet(path).reindex(columns=list(tickers))
+            try:
+                return pd.read_parquet(path).reindex(columns=list(tickers))
+            except (OSError, ValueError):  # a truncated file: fetch it again
+                pass
         panel = self.reader.history(tickers, start=start, end=end, field=field)
-        panel.to_parquet(path)
+        # Write to a temporary file and rename, so a process reading the cache at the same
+        # moment (parallel backtests) never sees a half-written file.
+        fd, tmp = tempfile.mkstemp(dir=self.cache_dir, suffix=".parquet.tmp")
+        os.close(fd)
+        try:
+            panel.to_parquet(tmp)
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
         return panel
