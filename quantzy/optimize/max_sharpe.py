@@ -18,7 +18,7 @@ class MaxSharpe(BaseOptimizer):
     weights summing to one.
     """
 
-    def objective(self, w, mu, sigma):  # pragma: no cover - solve() is overridden
+    def objective(self, w, inputs):  # pragma: no cover - solve() is overridden
         raise NotImplementedError("MaxSharpe overrides solve(); objective() is unused.")
 
     def _can_use_analytic(self, ctx: Context) -> bool:

@@ -17,10 +17,8 @@ class MinVariance(BaseOptimizer):
     Otherwise it falls back to the cvxpy template (long-only, bounds, turnover, costs, ...).
     """
 
-    def objective(self, w, mu, sigma):
-        import cvxpy as cp
-
-        return -cp.quad_form(w, cp.psd_wrap(sigma))
+    def objective(self, w, inputs):
+        return -inputs.variance(w)
 
     def _can_use_analytic(self, ctx: Context) -> bool:
         # Valid only for a single (budget) constraint with no transaction cost. The default

@@ -127,8 +127,10 @@ class WalkForwardBacktester:
                 cost = book.apply(decision)
                 decisions.append(decision)
 
-            port_returns[date] = book.accrue(asset_returns.loc[date], cost=cost)
+            # Record the book before accruing: it is what earns ``date``'s return. After
+            # accruing, the weights have drifted to where the day's prices left them.
             weight_rows[date] = book.weights.copy()
+            port_returns[date] = book.accrue(asset_returns.loc[date], cost=cost)
             nav_rows[date] = book.nav
 
         return BacktestResult(

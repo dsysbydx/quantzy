@@ -15,7 +15,19 @@ import pandas as pd
 import pytest
 
 from quantzy.data.bundle import DataBundle
-from quantzy.signals import EmaSpread, Momentum, Signal, Value, ewm_min_history
+from quantzy.signals import (
+    EmaSpread,
+    Identity,
+    Momentum,
+    SharpePrior,
+    Signal,
+    TrendPullback,
+    TrendStrength,
+    Value,
+    VolScaledTrend,
+    ZScore,
+    ewm_min_history,
+)
 
 #: Every signal, at parameters small enough to converge inside the test panel.
 ALL_SIGNALS = [
@@ -24,6 +36,16 @@ ALL_SIGNALS = [
     Value(window=252),
     EmaSpread(fast=10, slow=60),
     EmaSpread(fast=5, slow=20, sign=-1, vol_window=None),
+    TrendPullback(short=5, mid=20, long=60),
+    TrendPullback(short=5, mid=20, long=60, beta=0.5, gate=False, exclude=("CASH",)),
+    # Bounded scores: under the tests' extreme corruption every asset saturates at exactly 1.0,
+    # which a strict cross-sectional z-score rejects. Score them as they are meant to be used.
+    TrendStrength(window=60, vol_window=20, normalizer=Identity()),
+    TrendStrength(window=100, vol_window=30, horizon=5, exclude=("CASH",),
+                  normalizer=ZScore(on_degenerate="zero")),
+    TrendStrength(window=40, vol_window=20, ma="ema", normalizer=Identity()),
+    VolScaledTrend(window=40, vol_window=20, ma="ema", normalizer=Identity()),
+    SharpePrior({"A": 0.3}, vol_window=20, normalizer=Identity()),
 ]
 
 IDS = [f"{type(s).__name__}{sorted(s.params().items())}" for s in ALL_SIGNALS]
@@ -180,3 +202,112 @@ class TestAuthorMistakes:
 
         with pytest.raises(DegenerateCrossSection, match="no cross-sectional dispersion"):
             SameEverywhere().scores(bundle)
+
+
+class TestTrendPullback:
+    """The LT-trend / ST-reversal construction and its gate."""
+
+    def _spiky(self, panel):
+        """Clean trends with a three-day dip in UP and a pop in DOWN at the end.
+
+        UP and DOWN are deterministic drifts plus a small wiggle (so vol is defined); MID and
+        CASH come from ``panel``. The fixture's own random walks wander too much over a
+        60-row EMA to pin the sign of a trend.
+        """
+        n = len(panel)
+        t = np.arange(n)
+        wiggle = 0.004 * np.sin(t * 1.7)
+        out = panel.copy()
+        out["UP"] = 100.0 * np.exp(0.001 * t + wiggle)
+        out["DOWN"] = 100.0 * np.exp(-0.001 * t + wiggle)
+        out.iloc[-3:, out.columns.get_loc("UP")] *= 0.92
+        out.iloc[-3:, out.columns.get_loc("DOWN")] *= 1.08
+        return DataBundle.build(out)
+
+    def test_spans_must_be_ordered(self):
+        with pytest.raises(ValueError, match="short < mid < long"):
+            TrendPullback(short=20, mid=10, long=60)
+
+    def test_beta_must_be_non_negative(self):
+        with pytest.raises(ValueError, match="beta"):
+            TrendPullback(beta=-1.0)
+
+    def test_legs_read_trend_and_pullback(self, panel):
+        """UP trends up, DOWN trends down; a dip in UP shows as a negative ST leg."""
+        lt, st = TrendPullback(short=5, mid=20, long=60).legs(self._spiky(panel))
+        last = lt.iloc[-1]
+        assert last["UP"] > 0 > last["DOWN"]
+        assert st.iloc[-1]["UP"] < 0 < st.iloc[-1]["DOWN"]
+
+    def test_beta_zero_is_pure_trend(self, panel):
+        bundle = self._spiky(panel)
+        sig = TrendPullback(short=5, mid=20, long=60, beta=0.0)
+        lt, _ = sig.legs(bundle)
+        from quantzy.signals import ZScore
+
+        expected = ZScore(on_degenerate="zero")(lt).where(lt.notna())
+        pd.testing.assert_frame_equal(sig.raw(bundle), expected)
+
+    def test_gate_withholds_reversal_credit_from_downtrends(self, panel):
+        """DOWN popped above its short EMA in a downtrend: ungated, the reversal leg
+        penalizes it further; gated, it keeps only its trend score."""
+        bundle = self._spiky(panel)
+        kw = dict(short=5, mid=20, long=60, beta=1.0)
+        gated = TrendPullback(gate=True, **kw).raw(bundle).iloc[-1]
+        ungated = TrendPullback(gate=False, **kw).raw(bundle).iloc[-1]
+        assert ungated["DOWN"] < gated["DOWN"]
+        # UP is in an uptrend, so the gate changes nothing for it.
+        assert gated["UP"] == pytest.approx(ungated["UP"])
+
+    def test_dip_in_an_uptrend_raises_the_score(self, panel):
+        kw = dict(short=5, mid=20, long=60)
+        bundle = self._spiky(panel)
+        with_reversal = TrendPullback(beta=1.0, **kw).raw(bundle).iloc[-1]
+        trend_only = TrendPullback(beta=0.0, **kw).raw(bundle).iloc[-1]
+        assert with_reversal["UP"] > trend_only["UP"]
+
+    def test_excluded_tickers_are_neutral(self, bundle):
+        sig = TrendPullback(short=5, mid=20, long=60, exclude=("CASH",))
+        assert sig.raw(bundle)["CASH"].isna().all()
+        scores = sig.scores(bundle)
+        assert (scores["CASH"] == 0.0).all()
+        assert scores.iloc[-1].drop("CASH").abs().sum() > 0
+
+    def test_looser_tolerance_shortens_warmup(self):
+        tight = TrendPullback(long=200)
+        loose = TrendPullback(long=200, ewm_tol=1e-3)
+        assert loose.min_history < tight.min_history
+        assert tight.min_history == ewm_min_history(200)
+
+
+class TestTrendStrength:
+    def test_sign_follows_the_trend_and_stays_bounded(self, trend_prices):
+        noise = np.random.default_rng(3).normal(0, 0.002, size=trend_prices.shape)
+        prices = trend_prices * np.exp(np.cumsum(noise, axis=0))
+        raw = TrendStrength(window=60, vol_window=20).raw(DataBundle.build(prices))
+        last = raw.iloc[-1]
+        assert last["UP"] > 0.5 and last["DOWN"] < -0.5
+        assert raw.abs().max().max() < 1.0
+
+    def test_exclude_leaves_the_asset_unscored(self, bundle):
+        raw = TrendStrength(window=60, vol_window=20, exclude=("CASH",)).raw(bundle)
+        assert raw["CASH"].isna().all()
+        assert raw["UP"].notna().any()
+
+    def test_rejects_degenerate_windows(self):
+        with pytest.raises(ValueError, match="window"):
+            TrendStrength(window=1)
+
+    def test_ema_variant_is_a_different_bounded_score(self, bundle):
+        sma_, ema_ = (TrendStrength(window=60, vol_window=20, ma=ma).raw(bundle)
+                      for ma in ("sma", "ema"))
+        assert not np.allclose(sma_.fillna(0).to_numpy(), ema_.fillna(0).to_numpy())
+        assert ema_.abs().max().max() < 1.0
+        assert np.sign(sma_["DOWN"].iloc[-1]) == np.sign(ema_["DOWN"].iloc[-1])
+
+    def test_ema_warmup_is_its_convergence_length(self):
+        sig = TrendStrength(window=200, ma="ema", ewm_tol=1e-3)
+        assert sig.min_history == ewm_min_history(200, 1e-3)
+        assert TrendStrength(window=200, ma="ema").min_history == ewm_min_history(200, 1e-9)
+        with pytest.raises(ValueError, match="ma"):
+            TrendStrength(ma="wma")

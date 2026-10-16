@@ -16,9 +16,5 @@ class MeanVariance(BaseOptimizer):
         super().__init__(**kwargs)
         self.risk_aversion = risk_aversion
 
-    def objective(self, w, mu, sigma):
-        import cvxpy as cp
-
-        ret = mu @ w
-        risk = cp.quad_form(w, cp.psd_wrap(sigma))
-        return ret - self.risk_aversion * risk
+    def objective(self, w, inputs):
+        return inputs.mu @ w - self.risk_aversion * inputs.variance(w)

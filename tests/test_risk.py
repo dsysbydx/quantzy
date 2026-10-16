@@ -123,3 +123,139 @@ class TestEwmVariant:
         ewm = SampleCovariance(lookback=252, halflife=20).covariance(bundle)
         assert not np.allclose(plain.to_numpy(), ewm.to_numpy())
         assert np.linalg.eigvalsh(ewm.to_numpy()).min() > -1e-10
+
+
+class TestStateScaledRisk:
+    @staticmethod
+    def _model(downside=0.5, assets=None):
+        from quantzy.risk import StateScaledRisk
+        from quantzy.signals import Identity, TrendStrength
+
+        return StateScaledRisk(
+            base=SampleCovariance(lookback=60),
+            state=TrendStrength(window=60, vol_window=20, normalizer=Identity()),
+            downside=downside,
+            assets=assets,
+        )
+
+    def test_scales_only_assets_in_a_downtrend(self, bundle):
+        model, asof = self._model(), bundle.index[900]
+        base = model.base.covariance(bundle, asof).to_numpy()
+        m = model.multiplier(bundle, asof)
+        s = model.state.scores(bundle).loc[asof]
+        assert m["DOWN"] > 1.0 and s["DOWN"] < 0
+        assert m["UP"] == 1.0 and s["UP"] > 0
+        np.testing.assert_allclose(
+            model.covariance(bundle, asof).to_numpy(), base * np.outer(m, m), rtol=1e-12
+        )
+
+    def test_keeps_correlations(self, bundle):
+        model, asof = self._model(downside=2.0), bundle.index[900]
+
+        def corr(c):
+            v = np.sqrt(np.diag(c))
+            return c / np.outer(v, v)
+
+        np.testing.assert_allclose(corr(model.covariance(bundle, asof).to_numpy()),
+                                   corr(model.base.covariance(bundle, asof).to_numpy()),
+                                   rtol=1e-10)
+
+    def test_zero_downside_reproduces_the_base(self, bundle):
+        model, asof = self._model(downside=0.0), bundle.index[900]
+        np.testing.assert_allclose(model.covariance(bundle, asof).to_numpy(),
+                                   model.base.covariance(bundle, asof).to_numpy())
+
+    def test_assets_restricts_the_scaling(self, bundle):
+        m = self._model(assets=["UP"]).multiplier(bundle, bundle.index[900])
+        assert m["DOWN"] == 1.0
+
+    def test_future_data_cannot_change_the_estimate(self, bundle, panel):
+        asof = panel.index[900]
+        corrupted = panel.copy()
+        corrupted.loc[corrupted.index >= asof] *= 0.5  # a crash on the decision day itself
+        before = self._model().covariance(bundle, asof)
+        after = self._model().covariance(DataBundle.build(corrupted), asof)
+        np.testing.assert_allclose(before.to_numpy(), after.to_numpy(), rtol=1e-12)
+
+    def test_min_history_covers_base_and_state(self):
+        model = self._model()
+        assert model.min_history == max(model.base.min_history, 60 + 1 + 1)
+
+    def test_rejects_negative_downside(self):
+        with pytest.raises(ValueError, match="downside"):
+            self._model(downside=-0.1)
+
+
+class TestEwmFastPath:
+    """The precomputed EWM panel must match the per-date estimate it replaces."""
+
+    @staticmethod
+    def _slow(model, bundle, asof):
+        from quantzy.risk.base import PanelRiskModel
+
+        return PanelRiskModel.covariance(model, bundle, asof).to_numpy()
+
+    @pytest.mark.parametrize("halflife,lookback", [(10, 250), (60, 120), (20, None)])
+    def test_matches_the_per_date_estimate(self, bundle, halflife, lookback):
+        model = SampleCovariance(halflife=halflife, lookback=lookback)
+        for asof in bundle.index[[5, 130, 700, 1399]]:
+            np.testing.assert_allclose(model.covariance(bundle, asof).to_numpy(),
+                                       self._slow(model, bundle, asof), rtol=1e-8, atol=1e-14)
+
+    def test_window_with_a_gap_takes_the_per_date_path(self, panel):
+        gappy = panel.copy()
+        gappy.iloc[700, 0] = np.nan
+        bundle = DataBundle.build(gappy)
+        model = SampleCovariance(halflife=10, lookback=60)
+        _, ok = model._ewm_panel(bundle, model._returns(bundle))
+        assert not ok[702] and ok[800]  # pct_change puts the gap in returns rows 700 and 701
+        for asof in bundle.index[[720, 800]]:
+            np.testing.assert_allclose(model.covariance(bundle, asof).to_numpy(),
+                                       self._slow(model, bundle, asof), rtol=1e-8, atol=1e-14)
+
+    def test_future_data_cannot_change_the_estimate(self, bundle, panel):
+        asof = panel.index[900]
+        shocked = panel.copy()
+        shocked.loc[shocked.index >= asof] *= 0.5
+        a = SampleCovariance(halflife=10, lookback=250).covariance(bundle, asof)
+        b = SampleCovariance(halflife=10, lookback=250).covariance(DataBundle.build(shocked), asof)
+        np.testing.assert_allclose(a.to_numpy(), b.to_numpy(), rtol=1e-8)
+
+    def test_large_universe_skips_the_panel(self, bundle, monkeypatch):
+        import quantzy.risk.sample as sample
+
+        monkeypatch.setattr(sample, "MAX_PANEL_CELLS", 10)
+        model = SampleCovariance(halflife=10, lookback=60)
+        asof = bundle.index[900]
+        np.testing.assert_allclose(model.covariance(bundle, asof).to_numpy(),
+                                   self._slow(model, bundle, asof))
+        assert model._ewm_cache[1] is None
+
+
+class TestBlendedRisk:
+    def test_equal_blend_is_the_mean(self, bundle):
+        from quantzy.risk import BlendedRisk, ewma_blend
+
+        asof = bundle.index[900]
+        parts = [SampleCovariance(halflife=h, lookback=250) for h in (5, 20, 60)]
+        mean = sum(p.covariance(bundle, asof).to_numpy() for p in parts) / 3
+        np.testing.assert_allclose(ewma_blend().covariance(bundle, asof).to_numpy(), mean,
+                                   rtol=1e-12)
+        assert BlendedRisk(parts).min_history == max(p.min_history for p in parts)
+
+    def test_weights_are_normalized(self, bundle):
+        from quantzy.risk import BlendedRisk
+
+        a, b = SampleCovariance(halflife=5), SampleCovariance(halflife=60)
+        blend = BlendedRisk([a, b], weights=[3, 1])
+        assert blend.weights == (0.75, 0.25)
+        want = 0.75 * a.covariance(bundle).to_numpy() + 0.25 * b.covariance(bundle).to_numpy()
+        np.testing.assert_allclose(blend.covariance(bundle).to_numpy(), want, rtol=1e-12)
+
+    def test_rejects_bad_weights(self):
+        from quantzy.risk import BlendedRisk
+
+        with pytest.raises(ValueError):
+            BlendedRisk([SampleCovariance()], weights=[1, 1])
+        with pytest.raises(ValueError):
+            BlendedRisk([SampleCovariance()], weights=[-1])

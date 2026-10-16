@@ -17,6 +17,9 @@ from quantzy.signals.normalize import (
     TimeSeriesZ,
     ZScore,
 )
+from quantzy.signals.prior import SharpePrior
+from quantzy.signals.pullback import TrendPullback
+from quantzy.signals.trend import TrendStrength, VolScaledTrend
 from quantzy.signals.value import Value
 
 __all__ = [
@@ -24,6 +27,10 @@ __all__ = [
     "EmaSpread",
     "Momentum",
     "Value",
+    "TrendPullback",
+    "TrendStrength",
+    "VolScaledTrend",
+    "SharpePrior",
     "ema",
     "sma",
     "realized_vol",

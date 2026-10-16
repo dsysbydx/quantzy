@@ -91,3 +91,86 @@ class TestICDecay:
         scores = Momentum(lookback=252, skip=21).scores(bundle)
         table = ic_decay(scores, bundle.prices, horizons=(1, 126), min_names=3)
         assert table.loc[126, "n_obs"] < table.loc[1, "n_obs"]
+
+
+class TestTimeSeriesIC:
+    @staticmethod
+    def _panel(seed=0, n=600, k=3):
+        rng = np.random.default_rng(seed)
+        idx = pd.bdate_range("2020-01-01", periods=n)
+        rets = pd.DataFrame(rng.normal(0, 0.01, (n, k)), index=idx, columns=list("ABC")[:k])
+        prices = (1 + rets).cumprod() * 100
+        return prices, rets
+
+    def test_perfect_foresight_scores_one(self):
+        from quantzy.research import time_series_ic
+
+        prices, _ = self._panel()
+        oracle = forward_returns(prices, 5)
+        ic = time_series_ic(oracle, prices, horizon=5, method="pearson")
+        np.testing.assert_allclose(ic.to_numpy(), 1.0, atol=1e-12)
+
+    def test_noise_scores_near_zero_and_pooled_matches_average(self):
+        from quantzy.research import pooled_time_series_ic, time_series_ic
+
+        prices, _ = self._panel(seed=1)
+        noise = pd.DataFrame(np.random.default_rng(2).normal(size=prices.shape),
+                             index=prices.index, columns=prices.columns)
+        per_asset = time_series_ic(noise, prices, horizon=1)
+        pooled = pooled_time_series_ic(noise, prices, horizon=1)
+        assert per_asset.abs().max() < 0.15
+        assert pooled.mean() == pytest.approx(per_asset.mean(), abs=1e-12)
+
+    def test_nan_cells_are_ignored_not_zero(self):
+        """An asset's pre-inception rows must not count as a zero score."""
+        from quantzy.research import time_series_ic
+
+        prices, _ = self._panel(seed=3)
+        oracle = forward_returns(prices, 1)
+        oracle.iloc[:200, 0] = np.nan
+        assert time_series_ic(oracle, prices, horizon=1, method="pearson")["A"] == \
+            pytest.approx(1.0)
+
+    def test_vol_scaling_uses_only_past_returns(self):
+        """Prices after the last scored row's forward window cannot change the IC."""
+        from quantzy.research import time_series_ic
+
+        prices, _ = self._panel(seed=4)
+        scores = forward_returns(prices, 1).shift(1)  # yesterday's return: a legitimate score
+        scores.iloc[500:] = np.nan
+        corrupted = prices.copy()
+        corrupted.iloc[550:] *= 3.0
+        base = time_series_ic(scores, prices, horizon=5, vol_window=20)
+        after = time_series_ic(scores, corrupted, horizon=5, vol_window=20)
+        pd.testing.assert_series_equal(base, after)
+        assert base.notna().all()
+
+
+class TestChunkFolds:
+    def test_blocks_alternate(self):
+        from quantzy.research import chunk_folds
+
+        f = chunk_folds(pd.RangeIndex(10), chunk=3)
+        assert f.tolist() == [0, 0, 0, 1, 1, 1, 0, 0, 0, 1]
+
+    def test_rejects_bad_args(self):
+        from quantzy.research import chunk_folds
+
+        with pytest.raises(ValueError):
+            chunk_folds(pd.RangeIndex(10), chunk=0)
+
+
+class TestNeweyWest:
+    def test_matches_plain_t_without_lags(self):
+        from quantzy.research import newey_west_t
+
+        x = pd.Series(np.random.default_rng(0).normal(0.1, 1, 2000))
+        plain = x.mean() / (x.std(ddof=0) / np.sqrt(len(x)))
+        assert newey_west_t(x, lags=0) == pytest.approx(plain)
+
+    def test_shrinks_t_for_autocorrelated_series(self):
+        from quantzy.research import newey_west_t
+
+        e = np.random.default_rng(1).normal(size=5000)
+        x = pd.Series(np.convolve(e, np.ones(20) / 20, mode="same") + 0.02)
+        assert abs(newey_west_t(x, lags=40)) < abs(newey_west_t(x, lags=0))

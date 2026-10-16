@@ -62,6 +62,11 @@ class SimulatedBook:
     def accrue(self, asset_returns: pd.Series, cost: float = 0.0) -> float:
         """Earn one period's return on the book currently held, net of ``cost``.
 
+        The weights then drift with prices: an asset that outperformed ends the period a
+        larger share of the book. Holding them fixed instead would mean trading back to
+        target every period, for free -- a daily rebalance the cost model never sees, and
+        one that flatters any strategy that rebalances less often than daily.
+
         Args:
             asset_returns: Per-asset returns for the period, indexed by ticker.
             cost: Trading cost charged this period, as a fraction of NAV.
@@ -69,7 +74,11 @@ class SimulatedBook:
         Returns:
             The portfolio return for the period, net of cost.
         """
-        gross = float((self.weights * asset_returns.reindex(self.tickers).fillna(0.0)).sum())
+        r = asset_returns.reindex(self.tickers).fillna(0.0)
+        gross = float((self.weights * r).sum())
         net = gross - cost
         self.nav *= 1.0 + net
+        # Cost is a proportional haircut on the whole book, so it does not move the mix.
+        if 1.0 + gross > 0.0:
+            self.weights = self.weights * (1.0 + r) / (1.0 + gross)
         return net

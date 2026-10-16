@@ -62,3 +62,29 @@ def default_etf_universe() -> Universe:
             Asset("SGOV", "iShares 0-3 Month Treasury", "cash_equivalent"),
         ],
     )
+
+
+def sector_etf_universe() -> Universe:
+    """The nine original Select Sector SPDRs plus a short-Treasury cash sleeve.
+
+    All ten trade from mid-2002 (SHY is the binding inception), long enough to cover 2008.
+    XLRE (2015) and XLC (2018) are left out: their short histories would cut the backtest
+    to the last decade. SHY rather than SGOV (2020) is the cash sleeve for the same reason;
+    it carries a little rate risk (~1.9y duration) that a T-bill fund would not.
+    """
+    sectors = [
+        ("XLB", "Materials"),
+        ("XLE", "Energy"),
+        ("XLF", "Financials"),
+        ("XLI", "Industrials"),
+        ("XLK", "Technology"),
+        ("XLP", "Consumer Staples"),
+        ("XLU", "Utilities"),
+        ("XLV", "Health Care"),
+        ("XLY", "Consumer Discretionary"),
+    ]
+    return Universe(
+        name="sector_etf",
+        assets=[Asset(t, f"Select Sector SPDR: {n}", "etf") for t, n in sectors]
+        + [Asset("SHY", "iShares 1-3 Year Treasury", "cash_equivalent")],
+    )

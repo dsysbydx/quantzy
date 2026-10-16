@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantzy.backtest import BacktestResult, WalkForwardBacktester
+from quantzy.backtest import BacktestResult, FixedWeights, WalkForwardBacktester
 from quantzy.metrics import sharpe_ratio
+from quantzy.optimize import LinearCost
 from quantzy.signals import Momentum
 from quantzy.universe import Universe
 
@@ -144,3 +145,55 @@ class TestUniverseOrdering:
         )
         res = _run(DataBundle.build(reordered), strategy)
         assert list(res.weights.columns) == ["UP", "MID", "DOWN", "CASH"]
+
+
+class TestDrift:
+    """Between rebalances the book drifts with prices instead of resetting for free."""
+
+    def test_weights_drift_between_rebalances(self, bundle, universe):
+        ew = FixedWeights(universe)
+        res = _run(bundle, ew, rebalance_every=21)
+        first = res.rebalance_dates[0]
+        np.testing.assert_allclose(res.weights.loc[first].to_numpy(), 0.25)
+        # UP rallies and DOWN falls, so by the day before the next rebalance they differ.
+        before_next = res.weights.index[res.weights.index.get_loc(res.rebalance_dates[1]) - 1]
+        drifted = res.weights.loc[before_next]
+        assert drifted["UP"] != pytest.approx(0.25)
+        assert drifted.sum() == pytest.approx(1.0)
+
+    def test_drift_matches_buy_and_hold_arithmetic(self, bundle, universe, panel):
+        res = _run(bundle, FixedWeights(universe), rebalance_every=21)
+        d0 = res.rebalance_dates[0]
+        i0 = panel.index.get_loc(d0)
+        d5 = panel.index[i0 + 5]
+        # Bought in equal dollars at the close before d0, then held. weights[d5] is the book
+        # that earns d5, so it has drifted through d4's close: each weight is proportional
+        # to that asset's price growth since purchase.
+        held = panel.loc[panel.index[i0 + 4]] / panel.iloc[i0 - 1]
+        np.testing.assert_allclose(res.weights.loc[d5].to_numpy(),
+                                   (held / held.sum()).to_numpy(), rtol=1e-10)
+
+    def test_rebalance_pays_to_undo_drift(self, bundle, universe):
+        res = _run(bundle, FixedWeights(universe, cost_model=LinearCost(cost_bps=10.0)),
+                   rebalance_every=21)
+        later = res.decisions[1:]
+        assert all(d.turnover > 0 for d in later)
+        assert all(d.trades.cost == pytest.approx(d.turnover * 2 * 10.0 / 1e4) for d in later)
+
+
+class TestFixedWeights:
+    def test_daily_free_rebalance_is_the_mean_return(self, bundle, universe, panel):
+        res = _run(bundle, FixedWeights(universe), rebalance_every=1)
+        expected = panel.pct_change().mean(axis=1).loc[res.returns.index]
+        np.testing.assert_allclose(res.returns.to_numpy(), expected.to_numpy(), atol=1e-12)
+
+    def test_holdings_leaves_cash_out(self, universe):
+        fw = FixedWeights(universe, holdings=["UP", "MID", "DOWN"])
+        assert fw.decide(pd.DataFrame(1.0, index=pd.bdate_range("2020-01-01", periods=2),
+                                      columns=universe.tickers)).weights["CASH"] == 0.0
+
+    def test_rejects_unknown_tickers(self, universe):
+        with pytest.raises(ValueError, match="outside the universe"):
+            FixedWeights(universe, weights={"NOPE": 1.0})
+        with pytest.raises(ValueError, match="subset of the universe"):
+            FixedWeights(universe, holdings=["NOPE"])
