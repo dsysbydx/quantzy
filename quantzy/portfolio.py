@@ -10,6 +10,7 @@ unchanged.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -35,9 +36,15 @@ class PortfolioConfig:
         max_position: Per-asset cap.
         position_cap_of: ``"book"`` caps each asset as a share of the invested book, so the
             cap grows with leverage; ``"capital"`` caps it as a share of capital.
-        cost_bps: Linear trading cost, one way, in basis points of traded notional.
-        cost_aversion: Multiplier on that cost in the objective. Higher trades less; set it for
-            the slowest-decaying alphas the book holds.
+        cost_bps: Linear cost per unit traded, one way, in basis points, used in the
+            optimizer's objective on every asset including cash.
+        cost_aversion: Multiplier on that cost in the objective. Higher trades less. Together
+            with ``cost_bps`` it sets the no-trade band; in practice it smooths the book
+            against a noisy daily target more than it estimates cost
+            (``examples/research_execution_cost.py``).
+        execution_cost_bps: The cost actually charged to returns, one way, per ticker; tickers
+            left out (such as cash) are free. ``None`` charges ``cost_bps`` on every asset,
+            as in the objective. It does not change any trade.
         borrow_spread_bps: Annual spread over the cash rate paid on borrowed cash. Not part of
             the optimization; backtests subtract it from returns.
         risk_halflives: Halflives of the EWMA covariances blended into the shared risk model.
@@ -50,6 +57,7 @@ class PortfolioConfig:
     position_cap_of: Literal["book", "capital"] = "book"
     cost_bps: float = 5.0
     cost_aversion: float = 48.0
+    execution_cost_bps: Mapping[str, float] | None = None
     borrow_spread_bps: float = 50.0
     risk_halflives: tuple[float, ...] = field(default=(5, 20, 60))
     long_only: bool = True
@@ -71,6 +79,8 @@ class PortfolioConfig:
             constraints=cons,
             cost_model=LinearCost(self.cost_bps),
             cost_aversion=self.cost_aversion,
+            execution_cost=(None if self.execution_cost_bps is None
+                            else LinearCost(0.0, spread_bps=dict(self.execution_cost_bps))),
         )
 
     def net_of_borrowing(self, returns: pd.Series, weights: pd.DataFrame, cash: str,

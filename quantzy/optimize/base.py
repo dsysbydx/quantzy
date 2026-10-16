@@ -130,7 +130,8 @@ class BaseOptimizer(ABC):
 
     Args:
         constraints: Constraint builders; ``None`` means fully invested and long-only.
-        cost_model: Transaction cost, subtracted from the objective and reported on trades.
+        cost_model: Transaction cost, subtracted from the objective (times ``cost_aversion``)
+            and, unless ``execution_cost`` is given, reported on trades as the cost charged.
         cost_aversion: Multiplier on the cost *in the objective only*. ``mu`` is an annual
             return but a trade's cost is paid once, so at a cost aversion of 1 a trade only
             has to earn its cost back over a year. When the strategy decides daily, that makes
@@ -138,6 +139,10 @@ class BaseOptimizer(ABC):
             (12 means a trade must pay for itself within about a month). The larger it is,
             the wider the band in which the optimizer holds the current book rather than trade.
             The cost reported on the trades is unaffected.
+        execution_cost: The cost actually charged for a trade, reported on the trades (a
+            backtest subtracts it from returns). ``None`` uses ``cost_model``. Separate them
+            when the objective's cost is a smoothing penalty rather than an estimate of what a
+            trade costs.
         solver: cvxpy solver name. ``None`` uses Clarabel, an interior-point solver. cvxpy's
             own choice for these problems is OSQP, which warm-starts from the previous
             solution and on a badly scaled book (a cash sleeve with a thousandth of the
@@ -151,12 +156,14 @@ class BaseOptimizer(ABC):
         cost_model: CostModel | None = None,
         solver: str | None = None,
         cost_aversion: float = 1.0,
+        execution_cost: CostModel | None = None,
     ) -> None:
         if cost_aversion < 0:
             raise ValueError(f"cost_aversion must be >= 0, got {cost_aversion}")
         self._constraints = constraints
         self.cost_model = cost_model
         self.cost_aversion = cost_aversion
+        self.execution_cost = execution_cost
         self.solver = solver
         self._built: dict[tuple, _Built] = {}
 
@@ -272,7 +279,12 @@ class BaseOptimizer(ABC):
             nav=ctx.nav,
         )
         cost = None
-        if self.cost_model is not None:
-            cost = self.cost_model.estimate((target.weights - current.weights).to_numpy())
+        charged = self.execution_cost if self.execution_cost is not None else self.cost_model
+        if charged is not None:
+            dw = (target.weights - current.weights).to_numpy()
+            try:
+                cost = charged.estimate(dw, tickers=list(ctx.tickers))
+            except TypeError:  # a cost model that does not take tickers
+                cost = charged.estimate(dw)
         trades = diff(current, target, cost=cost).nonzero()
         return OptimizeResult(target=target, trades=trades, status=status, objective_value=obj)

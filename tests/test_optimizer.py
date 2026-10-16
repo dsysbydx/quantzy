@@ -95,6 +95,39 @@ class TestOptimizer:
             MeanVariance(cost_aversion=-1.0)
 
 
+class TestExecutionCost:
+    """The cost charged on trades can differ from the cost the objective trades off."""
+
+    @pytest.fixture
+    def setup(self):
+        tickers = ["X", "Y", "CASH"]
+        mu = pd.Series({"X": 0.10, "Y": 0.05, "CASH": 0.0})
+        sigma = pd.DataFrame(np.diag([0.04, 0.01, 1e-6]), index=tickers, columns=tickers)
+        current = Portfolio(weights=pd.Series({"X": 0.2, "Y": 0.3, "CASH": 0.5}), nav=1_000.0)
+        return mu, sigma, current
+
+    def test_charged_cost_uses_execution_model_and_leaves_trades_alone(self, setup):
+        mu, sigma, current = setup
+        kw = dict(risk_aversion=2.0, cost_model=LinearCost(5.0), cost_aversion=10.0,
+                  constraints=[C.budget(), C.long_only()])
+        base = MeanVariance(**kw).optimize(mu, sigma, current=current)
+        execution = LinearCost(0.0, spread_bps={"X": 2.0, "Y": 1.0})
+        split = MeanVariance(**kw, execution_cost=execution).optimize(mu, sigma, current=current)
+        pd.testing.assert_series_equal(base.weights, split.weights)
+        dw = (split.weights - current.weights)
+        expected = (2.0 * abs(dw["X"]) + 1.0 * abs(dw["Y"])) / 1e4  # cash is free
+        assert split.trades.cost == pytest.approx(expected)
+        assert base.trades.cost == pytest.approx(5.0 / 1e4 * dw.abs().sum())
+
+    def test_portfolio_config_wires_execution_cost(self):
+        from quantzy.portfolio import PortfolioConfig
+
+        opt = PortfolioConfig(execution_cost_bps={"X": 2.0}).optimizer("CASH")
+        assert opt.execution_cost.spread_bps == {"X": 2.0}
+        assert opt.cost_model.cost_bps == 5.0
+        assert PortfolioConfig().optimizer("CASH").execution_cost is None
+
+
 class TestCachedProblem:
     @pytest.fixture
     def three(self):
