@@ -40,7 +40,7 @@ after seeing these results. Better measures (earnings yield or CAPE by region, c
 futures curves) need data outside Yahoo.
 
 Usage:
-    uv run python examples/research_valuation_priors.py [--workers 3]
+    uv run python research/research_valuation_priors.py [--workers 3]
 """
 
 from __future__ import annotations

@@ -21,7 +21,7 @@ Candidates:
   volatility multiplied by ``1 + d * max(-trend, 0)``.
 
 Usage:
-    uv run python examples/research_qqq_volmodel.py [--workers 8]
+    uv run python research/research_qqq_volmodel.py [--workers 8]
 """
 
 from __future__ import annotations

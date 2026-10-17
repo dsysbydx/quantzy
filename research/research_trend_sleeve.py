@@ -19,7 +19,7 @@ Returns include T-bill interest on the collateral and are net of 5 bp per trade 
 fee on shorts. Sharpe is return over vol, with no cash deduction.
 
 Usage:
-    uv run python examples/research_trend_sleeve.py
+    uv run python research/research_trend_sleeve.py
 """
 
 from __future__ import annotations

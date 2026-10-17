@@ -31,7 +31,7 @@ long-only rule already blocks the spurious long/short directions. Shrinking towa
 also weakens the stock-bond hedge (rates 25% -> 19% at 0.25), raising vol.
 
 Usage:
-    uv run python examples/research_shrinkage.py [--workers 5]
+    uv run python research/research_shrinkage.py [--workers 5]
 """
 
 from __future__ import annotations

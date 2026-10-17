@@ -19,7 +19,7 @@ Every choice is made on the train window (Sharpe before 2013-07-31). The test wi
 reported, never used to choose.
 
 Usage:
-    uv run python examples/research_qqq_tune.py [--workers 8]
+    uv run python research/research_qqq_tune.py [--workers 8]
 """
 
 from __future__ import annotations

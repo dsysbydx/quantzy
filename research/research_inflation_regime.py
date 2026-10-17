@@ -28,7 +28,7 @@ and 1.11 against 1.13 (difference t 0.5 at best), and the 126- and 63-day versio
 in opposite directions (+1.8 and -1.6 points). Correlation with trend on these assets 0.35.
 
 Usage:
-    uv run --with xlrd python examples/research_inflation_regime.py [--workers 5]
+    uv run --with xlrd python research/research_inflation_regime.py [--workers 5]
 """
 
 from __future__ import annotations

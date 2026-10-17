@@ -30,7 +30,7 @@ long/short sleeve, would be a separate test. D's history has the wrong sign (1-y
 -0.15, -0.23 since 2010: long-horizon reversal), Sharpe 0.94 (US group) and 0.86 (all).
 
 Usage:
-    uv run python examples/research_sector_priors.py [--workers 5]
+    uv run python research/research_sector_priors.py [--workers 5]
 """
 
 from __future__ import annotations

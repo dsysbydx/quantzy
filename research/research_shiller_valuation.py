@@ -41,7 +41,7 @@ months from 1990. Deviations from a 200-month EMA hold up best since 1990 at 5-1
 2024-09 ERP was 0.9%, near its 1926+ low.
 
 Usage:
-    uv run --with xlrd python examples/research_shiller_valuation.py
+    uv run --with xlrd python research/research_shiller_valuation.py
 """
 
 from __future__ import annotations

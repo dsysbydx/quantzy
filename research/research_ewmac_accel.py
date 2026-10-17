@@ -38,7 +38,7 @@ The slowest speed's IC suggests a slower trend than EMA-200; that is a post-hoc 
 would need its own pre-specified test (fold A t 3.6 but fold B only 1.1).
 
 Usage:
-    uv run python examples/research_ewmac_accel.py [--workers 4]
+    uv run python research/research_ewmac_accel.py [--workers 4]
 """
 
 from __future__ import annotations

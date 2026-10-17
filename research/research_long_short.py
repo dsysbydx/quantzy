@@ -27,7 +27,7 @@ fails in every structure because its edge is mostly next-day (1-day IC t 4.7, 21
 while the book trades about once a year by design.
 
 Usage:
-    uv run python examples/research_long_short.py [--workers 5]
+    uv run python research/research_long_short.py [--workers 5]
 """
 
 from __future__ import annotations

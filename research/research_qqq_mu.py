@@ -20,7 +20,7 @@ stages chosen on the train window (before 2013-07-31) and reported on the test w
 - **Stage 2, sizing and trading** around the stage-1 winner: risk aversion, cost aversion.
 
 Usage:
-    uv run python examples/research_qqq_mu.py [--workers 8]
+    uv run python research/research_qqq_mu.py [--workers 8]
 """
 
 from __future__ import annotations

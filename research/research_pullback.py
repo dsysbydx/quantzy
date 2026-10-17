@@ -15,7 +15,7 @@ Three steps, in the order worth taking them:
    (``beta=0``) and an equal-weight sector benchmark -- on train and on held-out test,
    then year by year.
 
-Run:  uv run python -m examples.research_pullback
+Run:  uv run python research/research_pullback.py
 """
 
 from __future__ import annotations

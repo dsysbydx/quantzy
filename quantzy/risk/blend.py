@@ -19,7 +19,7 @@ class BlendedRisk:
     Averaging EWMAs with short and long halflives is a simple HAR-style forecast: the short
     one reacts to a volatility spike within days, the long one keeps the estimate from
     collapsing in a calm week. On QQQ, a 5/20/60 blend forecast 21-day volatility better than
-    any single halflife, in and out of sample (``examples/research_qqq_volmodel.py``).
+    any single halflife, in and out of sample (``research/research_qqq_volmodel.py``).
 
     Args:
         models: The models to blend. They must cover the same tickers.

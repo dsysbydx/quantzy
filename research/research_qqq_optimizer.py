@@ -23,7 +23,7 @@ book has to be before the optimizer moves. 1 means a trade must pay for itself w
 and 12 means within a month.
 
 Usage:
-    uv run python examples/research_qqq_optimizer.py [--workers 8]
+    uv run python research/research_qqq_optimizer.py [--workers 8]
 """
 
 from __future__ import annotations

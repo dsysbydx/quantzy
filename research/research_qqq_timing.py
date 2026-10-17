@@ -17,7 +17,7 @@ sample starts at QQQ's 1999 launch and includes the 2000-02 crash. SHY and BIL s
 and 2007 and would miss it. Sharpe is the framework's: return over vol, not in excess of cash.
 
 Usage:
-    uv run python examples/research_qqq_timing.py [--rebalance-every 21] [--cost-bps 5]
+    uv run python research/research_qqq_timing.py [--rebalance-every 21] [--cost-bps 5]
         [--vol-target 0.15] [--vol-window 60]
 """
 

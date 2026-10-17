@@ -36,7 +36,7 @@ a zero prior). Breadth multiplied prior bets, not alpha bets; a fair breadth tes
 the class mix and let the alphas choose within each class, with priors set per class.
 
 Usage:
-    uv run python examples/research_broad_universe.py [--workers 4]
+    uv run python research/research_broad_universe.py [--workers 4]
 """
 
 from __future__ import annotations

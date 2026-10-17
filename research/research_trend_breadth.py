@@ -22,7 +22,7 @@ on 17 ETFs across asset classes, then trades it.
 Cash is a T-bill price compounded from ``^IRX``, as in ``research_qqq_timing.py``.
 
 Usage:
-    uv run python examples/research_trend_breadth.py [--workers 8]
+    uv run python research/research_trend_breadth.py [--workers 8]
 """
 
 from __future__ import annotations

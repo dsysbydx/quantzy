@@ -34,7 +34,7 @@ fails out of sample (-45%). Gold's real yield has the wrong sign since 2000 (12-
 -0.41); commodity and dollar value and euro carry are noise.
 
 Usage:
-    uv run --with xlrd python examples/research_fast_valuation.py
+    uv run --with xlrd python research/research_fast_valuation.py
 """
 
 from __future__ import annotations

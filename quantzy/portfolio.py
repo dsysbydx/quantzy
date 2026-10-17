@@ -41,7 +41,7 @@ class PortfolioConfig:
         cost_aversion: Multiplier on that cost in the objective. Higher trades less. Together
             with ``cost_bps`` it sets the no-trade band; in practice it smooths the book
             against a noisy daily target more than it estimates cost
-            (``examples/research_execution_cost.py``).
+            (``research/research_execution_cost.py``).
         execution_cost_bps: The cost actually charged to returns, one way, per ticker; tickers
             left out (such as cash) are free. ``None`` charges ``cost_bps`` on every asset,
             as in the objective. It does not change any trade.

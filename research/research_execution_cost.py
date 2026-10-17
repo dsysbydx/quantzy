@@ -35,7 +35,7 @@ value is partly luck. At $3M the median order is about $7,000; ~30% are under $3
 IBKR's $0.35 minimum exceeds 1 bp, which is under $100 a year in total.
 
 Usage:
-    uv run python examples/research_execution_cost.py [--workers 6]
+    uv run python research/research_execution_cost.py [--workers 6]
 """
 
 from __future__ import annotations

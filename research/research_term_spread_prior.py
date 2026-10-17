@@ -26,7 +26,7 @@ pre-set choice. In the book's sample this is mostly one episode; the 1962+ evide
 the weight.
 
 Usage:
-    uv run python examples/research_term_spread_prior.py [--workers 5]
+    uv run python research/research_term_spread_prior.py [--workers 5]
 """
 
 from __future__ import annotations

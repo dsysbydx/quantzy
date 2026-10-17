@@ -35,7 +35,7 @@ to 1.09 with a smaller drawdown; log VIX has no IC. VRP was at -2 at the March 2
 does not fix that re-entry. VRP went on to ``research_vrp.py`` and was adopted.
 
 Usage:
-    uv run python examples/research_reentry.py [--workers 6]
+    uv run python research/research_reentry.py [--workers 6]
 """
 
 from __future__ import annotations

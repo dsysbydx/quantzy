@@ -23,7 +23,7 @@ scored best but the pre-set 5-year one is kept. Better in 10 of 19 years; 2008 a
 about three quarters of the gain, and average equity weight rises from 74% to 77%.
 
 Usage:
-    uv run python examples/research_vrp.py [--workers 6]
+    uv run python research/research_vrp.py [--workers 6]
 """
 
 from __future__ import annotations

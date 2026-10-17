@@ -26,7 +26,7 @@ ex-US led, 1.45 against 1.58. Without those three diversifiers the drawdown is -
 change to the saved book.
 
 Usage:
-    uv run python examples/research_us_tilt.py [--workers 4]
+    uv run python research/research_us_tilt.py [--workers 4]
 """
 
 from __future__ import annotations

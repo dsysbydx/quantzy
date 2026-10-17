@@ -9,7 +9,7 @@ What it is
     and, on the 12 equity ETFs only, the variance risk premium (VIX^2 minus SPY's realized
     variance, a 5-year z-score), one market-wide number.
 
-Evidence (``examples/research_trend_*.py``)
+Evidence (``research/research_trend_*.py``)
     * Risk model: the 5/20/60 EWMA blend forecast vol best (QLIKE); trend-scaled vol made it
       worse, so the risk model carries no alpha.
     * Trend IC vs next-day return / trailing vol, 47-day interleaved folds, Newey-West t:

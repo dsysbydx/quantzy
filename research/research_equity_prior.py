@@ -19,7 +19,7 @@ and Sharpe is 1.09 and 1.06: the optimizer funds the extra equity view mostly fr
 commodities, which earned well here, and keeps Treasuries as the hedge.
 
 Usage:
-    uv run python examples/research_equity_prior.py [--workers 6]
+    uv run python research/research_equity_prior.py [--workers 6]
 """
 
 from __future__ import annotations

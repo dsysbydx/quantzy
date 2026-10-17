@@ -33,7 +33,7 @@ Thailand), the classes where breadth could matter (ex-US equity) hold 4-5% of ca
 the extras mostly duplicate existing exposures.
 
 Usage:
-    uv run python examples/research_fixed_mix_breadth.py [--workers 4]
+    uv run python research/research_fixed_mix_breadth.py [--workers 4]
 """
 
 from __future__ import annotations

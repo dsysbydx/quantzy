@@ -17,7 +17,7 @@ Priors were fixed before the backtest: credit 0.25, the same as Treasuries. Ever
 is the selected book, with the shared portfolio settings (``PORTFOLIO``).
 
 Usage:
-    uv run python examples/research_trend_plus.py [--workers 8]
+    uv run python research/research_trend_plus.py [--workers 8]
 """
 
 from __future__ import annotations

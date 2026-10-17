@@ -32,7 +32,7 @@ sleeve 46% in rates and 33% in credit, where trend was weak. Breadth in long-onl
 not pay with these alphas.
 
 Usage:
-    uv run python examples/research_trend_sleeve_broad.py [--workers 2]
+    uv run python research/research_trend_sleeve_broad.py [--workers 2]
 """
 
 from __future__ import annotations

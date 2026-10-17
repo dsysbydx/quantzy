@@ -22,7 +22,7 @@ the extra edge is mostly in capped, correlated US sectors. A 60/200 check gave t
 correlation 0.99 with 64/256). The cost of slower trend: Sep-Oct 2008 lost 2-3 points more.
 
 Usage:
-    uv run python examples/research_ewmac_slow.py [--workers 5]
+    uv run python research/research_ewmac_slow.py [--workers 5]
 """
 
 from __future__ import annotations

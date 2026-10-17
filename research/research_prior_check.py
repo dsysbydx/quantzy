@@ -30,7 +30,7 @@ since 2000 (+1.9 SE) on only 26 years. Commodities (0.09) and the dollar (0.01, 
 match their priors.
 
 Usage:
-    uv run python examples/research_prior_check.py
+    uv run python research/research_prior_check.py
 """
 
 from __future__ import annotations

@@ -10,7 +10,7 @@ one concrete, frozen choice made from it, in one module that defines:
 
 Lifecycle of an idea:
 
-1. **Explore** in ``examples/research_*.py``: IC with interleaved folds, then a backtest.
+1. **Explore** in ``research/research_*.py``: IC with interleaved folds, then a backtest.
 2. **Test against a saved strategy.** Call ``build(alphas={**ALPHAS, "new": (sig, w)})``
    with ``PORTFOLIO`` unchanged, and judge the incremental Sharpe over ``build()``, not the
    book's total. Portfolio settings never move to make one alpha look better.

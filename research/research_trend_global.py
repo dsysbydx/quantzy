@@ -18,7 +18,7 @@ nine groups and asks again, with the same rule for every asset and no per-group 
 Most groups start trading in 2007, so the backtest starts in 2009 and misses 2008.
 
 Usage:
-    uv run python examples/research_trend_global.py [--workers 8]
+    uv run python research/research_trend_global.py [--workers 8]
 """
 
 from __future__ import annotations
