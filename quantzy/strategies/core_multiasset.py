@@ -144,6 +144,16 @@ ALPHAS: dict[str, tuple[Signal, float]] = {
 }
 
 
+def etf_trading_days(raw: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
+    """Keep only the days on which at least one of ``tickers`` traded.
+
+    Index and yield series (^IRX, ^VIX) can print on US exchange holidays. A row with no ETF
+    price makes every ETF's return on it NaN, and a 60-day rolling vol that sees one NaN is
+    NaN for the next 60 days, which zeroes every alpha's ``mu`` for three months.
+    """
+    return raw[raw[tickers].notna().any(axis=1)]
+
+
 def load(start: str = START) -> DataBundle:
     """Prices for the 17 ETFs plus a T-bill sleeve compounded from the ^IRX yield; the VIX and
     SPY closes the variance risk premium reads (panels, the same in every column); and a
@@ -151,6 +161,7 @@ def load(start: str = START) -> DataBundle:
     """
     raw = CachedReader(YFinanceReader()).history(
         [*RISKY, "^IRX", "^VIX", "SPY", *CARRY_YIELDS.values()], start=start)
+    raw = etf_trading_days(raw, RISKY)
     yld = raw["^IRX"].ffill() / 100.0
     cash_ret = ((1.0 + yld) ** (1.0 / TRADING_DAYS) - 1.0).shift(1).fillna(0.0)
     prices = raw[RISKY].copy()

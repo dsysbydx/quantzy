@@ -6,33 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantzy.data.bundle import DataBundle
 from quantzy.signals import Identity, Momentum
 from quantzy.strategies import REGISTRY, core_multiasset, get
-
-
-@pytest.fixture(scope="module")
-def core_bundle():
-    """Synthetic data for the core universe: trending risky assets, a T-bill, the VIX and SPY
-    panels the variance risk premium reads, and Treasury carry. Long enough for VRP's 5-year
-    z-score."""
-    rng = np.random.default_rng(7)
-    dates = pd.bdate_range("2015-01-01", periods=1500)
-    drift = rng.normal(0.0002, 0.0004, len(core_multiasset.RISKY))
-    rets = rng.normal(drift, 0.01, size=(len(dates), len(drift)))
-    px = pd.DataFrame(100 * np.cumprod(1 + rets, axis=0), index=dates,
-                      columns=core_multiasset.RISKY)
-    px[core_multiasset.CASH] = 1.0001 ** np.arange(len(dates))
-    spy = 100 * np.cumprod(1 + rng.normal(0.0003, 0.01, len(dates)))
-    vix = 18 + 5 * np.sin(np.arange(len(dates)) / 50) + rng.normal(0, 1, len(dates))
-
-    def wide(x):
-        return pd.DataFrame({c: x for c in px.columns}, index=dates)
-
-    carry = pd.DataFrame(np.nan, index=dates, columns=px.columns)
-    carry["IEF"], carry["TLT"] = 0.01, 0.015
-
-    return DataBundle.build(px, vix=wide(vix), market=wide(spy), carry=carry)
 
 
 class TestRegistry:
@@ -71,3 +46,13 @@ class TestCoreMultiasset:
         alphas = {**core_multiasset.ALPHAS}
         alphas["trend"] = (alphas["trend"][0], 0.0)
         assert "trend" not in core_multiasset.build(alphas=alphas).weights
+
+
+class TestTradingDays:
+    def test_holiday_rows_are_dropped_and_listings_kept(self):
+        idx = pd.bdate_range("2024-01-01", periods=5)
+        raw = pd.DataFrame({"A": [1.0, 2.0, np.nan, 3.0, 4.0],
+                            "B": [np.nan, np.nan, np.nan, 5.0, 6.0], "^IRX": [5.0] * 5},
+                           index=idx)
+        out = core_multiasset.etf_trading_days(raw, ["A", "B"])
+        assert list(out.index) == [idx[0], idx[1], idx[3], idx[4]]  # B not yet listed: kept

@@ -103,3 +103,30 @@ def make_strategy(universe):
         )
 
     return _make
+
+
+@pytest.fixture(scope="module")
+def core_bundle():
+    """Synthetic data for the core universe: trending risky assets, a T-bill, the VIX and SPY
+    panels the variance risk premium reads, and Treasury carry. Long enough for VRP's 5-year
+    z-score."""
+    from quantzy.data.bundle import DataBundle
+    from quantzy.strategies import core_multiasset
+
+    rng = np.random.default_rng(7)
+    dates = pd.bdate_range("2015-01-01", periods=1500)
+    drift = rng.normal(0.0002, 0.0004, len(core_multiasset.RISKY))
+    rets = rng.normal(drift, 0.01, size=(len(dates), len(drift)))
+    px = pd.DataFrame(100 * np.cumprod(1 + rets, axis=0), index=dates,
+                      columns=core_multiasset.RISKY)
+    px[core_multiasset.CASH] = 1.0001 ** np.arange(len(dates))
+    spy = 100 * np.cumprod(1 + rng.normal(0.0003, 0.01, len(dates)))
+    vix = 18 + 5 * np.sin(np.arange(len(dates)) / 50) + rng.normal(0, 1, len(dates))
+
+    def wide(x):
+        return pd.DataFrame({c: x for c in px.columns}, index=dates)
+
+    carry = pd.DataFrame(np.nan, index=dates, columns=px.columns)
+    carry["IEF"], carry["TLT"] = 0.01, 0.015
+
+    return DataBundle.build(px, vix=wide(vix), market=wide(spy), carry=carry)
