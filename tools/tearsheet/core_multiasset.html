@@ -1,0 +1,688 @@
+<title>Multi-Asset Trend Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single reading column of numbered report sections; summary table first, then charts top-down from PnL to positioning to trading. */
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --fg: #17202b; --muted: #5b6676; --rule: #dde2e9; --grid: #e9edf2;
+  --s1: #0f6e7a; --s2: #8a94a3; --s3: #b7791f; --s4: #6d5bb5;
+  --pos: #1f7a4d; --neg: #b3362f; --pos-bg: 31,122,77; --neg-bg: 179,54,47;
+  --c1: #0f6e7a; --c2: #3d8fd1; --c3: #b7791f; --c4: #6d5bb5; --c5: #7c8796; --c6: #c9d1db;
+  --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f141a; --panel: #161d25; --fg: #e4e9ef; --muted: #93a0b0; --rule: #26303c; --grid: #1f2832;
+  --s1: #3fc1c9; --s2: #7d8897; --s3: #e0a54a; --s4: #a493ec;
+  --pos: #4cc38a; --neg: #f07167; --pos-bg: 76,195,138; --neg-bg: 240,113,103;
+  --c1: #3fc1c9; --c2: #5aa9ea; --c3: #e0a54a; --c4: #a493ec; --c5: #8793a3; --c6: #3a4654;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f141a; --panel: #161d25; --fg: #e4e9ef; --muted: #93a0b0; --rule: #26303c; --grid: #1f2832;
+  --s1: #3fc1c9; --s2: #7d8897; --s3: #e0a54a; --s4: #a493ec;
+  --pos: #4cc38a; --neg: #f07167; --pos-bg: 76,195,138; --neg-bg: 240,113,103;
+  --c1: #3fc1c9; --c2: #5aa9ea; --c3: #e0a54a; --c4: #a493ec; --c5: #8793a3; --c6: #3a4654;
+  color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 28px 64px }
+main { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px }
+header { display: grid; gap: 10px }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+h1 { font-size: clamp(26px, 4vw, 36px); line-height: 1.15; margin: 0; font-weight: 700; letter-spacing: -.01em; text-wrap: balance }
+h2 { font-size: 18px; margin: 0; font-weight: 600; text-wrap: balance }
+h2 .n { font: 500 13px var(--mono); color: var(--muted); margin-right: 8px }
+p { margin: 0; max-width: 70ch }
+.lede { color: var(--muted) }
+.spec { font: 13px/1.6 var(--mono); color: var(--fg); background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; overflow-x: auto; white-space: pre }
+section { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 20px; display: grid; gap: 14px; min-width: 0 }
+.note { font-size: 13px; color: var(--muted) }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 20px }
+.grid2 > div { min-width: 0; display: grid; gap: 8px; align-content: start }
+h3 { font-size: 14px; margin: 0; font-weight: 600 }
+.chart { position: relative; height: 300px; width: 100% }
+.chart.tall { height: 380px }
+.chart.short { height: 220px }
+.tw { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums }
+th, td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid) }
+th { font-weight: 600; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--rule) }
+th:first-child, td:first-child { text-align: left }
+td { font-family: var(--mono); font-size: 12.5px }
+td:first-child { font-family: var(--sans); font-size: 13px }
+tr.hl td { font-weight: 600 }
+tr.grp th { text-align: center; color: var(--fg); border-bottom: 1px solid var(--rule) }
+.pos { color: var(--pos) } .neg { color: var(--neg) }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px }
+.legend button { font: inherit; color: var(--fg); background: none; border: 0; padding: 2px 0; cursor: pointer; display: inline-flex; gap: 6px; align-items: center }
+.legend button[aria-pressed="false"] { opacity: .4 }
+.legend button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 3px }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block }
+.sw.box { height: 10px; width: 10px; border-radius: 2px }
+.heat td { text-align: center; padding: 5px 6px; font-size: 12px }
+.heat td:first-child, .heat td:last-child { font-weight: 600 }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden }
+.kpi { background: var(--panel); padding: 14px 16px; display: grid; gap: 2px }
+.kpi .k { font-size: 12px; color: var(--muted) }
+.kpi .v { font: 500 22px/1.2 var(--mono); font-variant-numeric: tabular-nums }
+.kpi .s { font-size: 12px; color: var(--muted); font-family: var(--mono) }
+.seg { display: flex; flex-wrap: wrap; gap: 6px }
+.seg button { font: 500 12px var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 10px; cursor: pointer }
+.seg button[aria-pressed="true"] { background: var(--s1); border-color: var(--s1); color: var(--panel) }
+.seg button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px }
+.heatwrap { position: relative; width: 100% }
+.heatwrap canvas { display: block; width: 100% }
+.htip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; font: 12px/1.4 var(--mono); box-shadow: 0 4px 12px rgba(0,0,0,.12); white-space: nowrap; display: none; z-index: 3 }
+.hscale { display: flex; align-items: center; gap: 8px; font: 12px var(--mono); color: var(--muted) }
+.hscale .bar { height: 10px; width: 180px; border-radius: 2px; border: 1px solid var(--rule) }
+.period { position: sticky; top: 0; z-index: 5; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 16px; display: grid; gap: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.06) }
+.period .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center }
+.period .lab { font: 500 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+.period .rng { font: 500 13px var(--mono); font-variant-numeric: tabular-nums }
+.period .sliders { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; font-size: 12px; color: var(--muted) }
+.period input[type=range] { width: 100%; accent-color: var(--s1); margin: 0 }
+.presets { display: flex; flex-wrap: wrap; gap: 6px }
+.presets button { font: 500 12px var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 999px; padding: 4px 10px; cursor: pointer }
+.presets button[aria-pressed="true"] { background: var(--s1); border-color: var(--s1); color: var(--panel) }
+.presets button:focus-visible, .period input:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 75ch }
+</style>
+
+<main>
+<header>
+  <div class="eyebrow">quantzy · strategies.core_multiasset · backtest tear-sheet</div>
+  <h1>Multi-Asset Trend Book</h1>
+  <p class="lede">17 ETFs plus T-bills, rebalanced daily by mean-variance, with up to 1.3× gross exposure. Expected return is a class Sharpe prior (for Treasuries, half way to the yield curve's carry) plus a small slow-trend tilt (price against its 200-day EMA and the 64/256 EMA crossover) and, on the equity ETFs, the variance risk premium (VIX² minus SPY's realized variance). Daily returns are net of per-ETF trading cost (1 to 5 bp one way) and of borrowing at the T-bill rate plus 0.5%. Sharpe is return over vol, with no cash deduction.</p>
+  <div class="spec">mu_i    = vol_i × (SR_class + 0.05 × trend_ema200_i + 0.037 × ewmac64_256_i + 0.091 × vrp [equity ETFs])
+SR      = equity 0.30 · GLD 0.20 · DBC 0.15 · UUP 0 · IEF/TLT 0.5 × 0.25 + 0.5 × (long yield − 3m bill) / vol (7%, 14%)
+risk    = ewma_blend(5, 20, 60)                           sizing: risk aversion 1.5, no hard vol limit (~10% vol)
+limits  = long only · max 1.3× gross, borrowed vs T-bills · 20% per ETF as a share of the invested book
+trading = optimizer band 5 bp × 48 on every leg incl. cash · charged 1–5 bp by ETF, cash free · borrow at T-bill + 50 bp
+period  = <span id="period"></span>     train / test split <span id="splitd"></span></div>
+</header>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="period" role="group" aria-label="Chart period">
+  <div class="row"><span class="lab">Chart period</span><span class="rng" id="win-label"></span></div>
+  <div class="presets" id="presets"></div>
+  <div class="sliders">
+    <label for="win-a">From</label><input type="range" id="win-a" min="0" step="1">
+    <label for="win-b">To</label><input type="range" id="win-b" min="0" step="1">
+  </div>
+</div>
+
+<section>
+  <h2><span class="n">01</span>Summary statistics</h2>
+  <div class="tw"><table id="stats"></table></div>
+  <p class="note">Strategy is the saved core_multiasset book. Baseline is the same book, with the same portfolio settings, and the class priors only (no trend or VRP). Equal weight holds the 17 ETFs equally, rebalanced monthly. CAGR is compounded; Sharpe uses the arithmetic mean of daily returns × 252.</p>
+</section>
+
+<section>
+  <h2><span class="n">02</span>Cumulative PnL</h2>
+  <div class="tw"><table id="winstats"></table></div>
+  <div class="legend" id="lg-nav"></div>
+  <div class="chart tall"><canvas id="c-nav"></canvas></div>
+  <p class="note">Growth of $1 invested at the start of the chart period, log scale; the table above covers the same period. The dashed line marks the train / test split, where the trend weight and settings were chosen on data before it. The chart period applies to every chart over time; rolling measures still look back their full window, which can reach before the start.</p>
+</section>
+
+<section>
+  <h2><span class="n">03</span>Drawdown</h2>
+  <div class="chart short"><canvas id="c-dd"></canvas></div>
+  <div class="tw"><table id="ddtab"></table></div>
+</section>
+
+<section>
+  <h2><span class="n">04</span>Rolling risk and return</h2>
+  <div class="legend" id="lg-roll"></div>
+  <div class="grid2">
+    <div><h3>Rolling 1-year Sharpe</h3><div class="chart"><canvas id="c-rs"></canvas></div></div>
+    <div><h3>Rolling 3-month volatility (annualized)</h3><div class="chart"><canvas id="c-rv"></canvas></div></div>
+    <div><h3>Rolling 1-year correlation with QQQ</h3><div class="chart"><canvas id="c-rc"></canvas></div></div>
+    <div><h3>Rolling 1-year excess Sharpe vs baseline (tracking)</h3><div class="chart"><canvas id="c-ri"></canvas></div></div>
+  </div>
+  <p class="note">The excess panel is the 1-year Sharpe of the daily difference between strategy and baseline. It shows when the trend and VRP tilts added or lost value.</p>
+</section>
+
+<section>
+  <h2><span class="n">05</span>Returns by calendar year</h2>
+  <div class="chart"><canvas id="c-yr"></canvas></div>
+  <div class="tw"><table id="yrtab"></table></div>
+</section>
+
+<section>
+  <h2><span class="n">06</span>Monthly returns, strategy</h2>
+  <div class="tw"><table class="heat" id="heat"></table></div>
+</section>
+
+<section>
+  <h2><span class="n">07</span>Positioning</h2>
+  <div class="legend" id="lg-cls"></div>
+  <div class="chart tall"><canvas id="c-cls"></canvas></div>
+  <p class="note">Weights are a share of capital. The stack above 100% is borrowed against T-bills; T-bills appear only on days the book holds positive cash.</p>
+  <div class="grid2">
+    <div><h3>Average and latest weight by ETF</h3><div class="chart tall"><canvas id="c-aw"></canvas></div></div>
+    <div><h3>Total return contribution by ETF, full period</h3><div class="chart tall"><canvas id="c-ac"></canvas></div></div>
+  </div>
+  <p class="note">Contribution is the sum of daily weight × ETF return, before costs. It adds up to roughly the arithmetic return of the book.</p>
+</section>
+
+<section>
+  <h2><span class="n">08</span>Signals by asset over time</h2>
+  <div class="seg" id="sig-pick" role="group" aria-label="Signal"></div>
+  <div class="seg" id="sig-mode" role="group" aria-label="Units"></div>
+  <div class="heatwrap" id="sig-wrap"><canvas id="c-sig" role="img" aria-label="Heatmap of the selected signal by asset and date"></canvas><div class="htip" id="sig-tip"></div></div>
+  <div class="hscale" id="sig-scale"></div>
+  <p class="note" id="sig-note"></p>
+</section>
+
+<section>
+  <h2><span class="n">09</span>Return attribution by asset class and year</h2>
+  <div class="chart"><canvas id="c-attr"></canvas></div>
+</section>
+
+<section>
+  <h2><span class="n">10</span>Trading</h2>
+  <div class="grid2">
+    <div><h3>One-way turnover per year (× book)</h3><div class="chart short"><canvas id="c-to"></canvas></div></div>
+    <div><h3>Days with a trade per year</h3><div class="chart short"><canvas id="c-td"></canvas></div></div>
+  </div>
+  <p class="note" id="costnote"></p>
+</section>
+
+<section>
+  <h2><span class="n">11</span>Return distribution</h2>
+  <div class="grid2">
+    <div><h3>Monthly returns, strategy vs equal weight</h3><div class="chart"><canvas id="c-hist"></canvas></div></div>
+    <div><h3>Worst 10 months for QQQ, and what the strategy did</h3><div class="tw"><table id="stress"></table></div></div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">12</span>Caveats</h2>
+  <ul>
+    <li>The Treasury prior moves half way to the yield curve's carry (long yield minus the 3-month bill, over long-run vol). The term spread has forecast Treasury excess returns since 1962. In this backtest it mainly cut bonds during the 2022–24 inversion (from 18% to 8% of capital) and lifted test-window Sharpe from 1.07 to 1.14; before 2017 it changed little.</li>
+    <li>The VRP alpha adds a market-wide equity view: overweight equities when implied variance is high relative to realized. It lifted Sharpe from 1.06 to 1.09 (before the Treasury carry change) and cut the worst drawdown from −18.2% to −16.0%, but about three quarters of its gain came in 2008 and 2021, and before 2008 its evidence on SPY is weak (t 1.1). It does not speed up re-entry after a V-shaped crash: at the March 2020 low it was at its most bearish.</li>
+    <li>The trend budget is split between EMA-200 and the EWMAC 64/256 crossover. The crossover forecasts next-day returns better (IC +0.018 against +0.006) but adds no Sharpe in this book. The swap was made on the signal evidence and cut turnover by 14%. Slower trend exits later in a sudden crash: September to October 2008 lost about 3 points more than with EMA-200 alone.</li>
+    <li>The slow crossover needs history until September 2008, so the backtest starts there and misses May to August 2008, when the EMA-200-only book lost 10.7%.</li>
+    <li>About 40 configurations were tried before choosing this one. The trend gain held in both the train and test windows and on two risk-model variants, but the exact settings still carry some selection bias.</li>
+    <li>The class Sharpe priors are judgment calls. The book holds roughly a third in Treasuries, which helped from 2008 to 2020 and hurt in 2022.</li>
+    <li>Risk aversion 1.5 is a portfolio-level setting. It ran at about 10% vol with today's alphas, but a fixed risk aversion lets vol drift: 9.8% in training, 12.5% in the test window, just above the 8–12% band. Adding alphas will raise it further.</li>
+    <li>Reaching 10% means lowering risk aversion from 3 to 1.5, which concentrates the book. In the earlier EMA-200-only book from May 2008, the diversified λ = 3 version had a Sharpe of 1.13 at 6.7% vol, against 0.99 at λ = 1.5.</li>
+    <li>Borrowing is charged at T-bill + 0.5%, which is close to futures financing. A retail margin loan often costs 1 to 1.5% over T-bills, which would take about 0.3% a year off the return.</li>
+    <li>Trades are charged an estimated 1 bp (QQQ, GLD, IEF, TLT), 2 bp (sector SPDRs, EFA, EEM) or 5 bp (DBC, UUP) one way, with no market-impact model; check against real fills. The optimizer separately uses a much larger 5 bp × 48 penalty as a no-trade band: trading closer to the daily target lowered Sharpe at every looser setting tested. T-bill yield comes from ^IRX.</li>
+  </ul>
+</section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const D = __DATA__;
+const N = D.dates.length, Y = 252;
+const dates = D.dates;
+const splitIdx = dates.findIndex(d => d >= D.split);
+const W = { a: 0, b: dates.length - 1 };
+const xf = dates.map(d => { const [y, m, dd] = d.split('-').map(Number); return y + (m - 1) / 12 + (dd - 1) / 365; });
+const SER = [
+  { k: 'strategy', name: 'Strategy (priors + trend + VRP)', c: '--s1', w: 2.2 },
+  { k: 'baseline', name: 'Baseline (priors only)', c: '--s2', w: 1.5 },
+  { k: 'equal', name: 'Equal weight 17', c: '--s3', w: 1.5 },
+  { k: 'qqq', name: 'QQQ buy and hold', c: '--s4', w: 1.5 },
+];
+const CLS = ['US sectors', 'equity index', 'Treasuries', 'gold & commodities', 'US dollar', 'T-bill'];
+const CLSC = ['--c1', '--c2', '--c5', '--c3', '--c4', '--c6'];
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const pct = (x, d = 1) => (x == null || !isFinite(x)) ? '–' : (x * 100).toFixed(d) + '%';
+const num = (x, d = 2) => (x == null || !isFinite(x)) ? '–' : x.toFixed(d);
+const sgn = x => x > 0 ? 'pos' : x < 0 ? 'neg' : '';
+
+// ---- statistics ----
+function nav(r) { let v = 1; return r.map(x => (v *= 1 + x)); }
+function monthly(r) {
+  const out = new Map();
+  r.forEach((x, i) => { const k = dates[i].slice(0, 7); out.set(k, (out.get(k) ?? 1) * (1 + x)); });
+  return [...out].map(([k, v]) => [k, v - 1]);
+}
+function stats(r, a = 0, b = N) {
+  const s = r.slice(a, b), n = s.length;
+  const m = s.reduce((p, x) => p + x, 0) / n;
+  const sd = Math.sqrt(s.reduce((p, x) => p + (x - m) ** 2, 0) / (n - 1));
+  const dn = Math.sqrt(s.reduce((p, x) => p + Math.min(x, 0) ** 2, 0) / n);
+  let v = 1, pk = 1, dd = 0;
+  for (const x of s) { v *= 1 + x; pk = Math.max(pk, v); dd = Math.min(dd, v / pk - 1); }
+  const cagr = v ** (Y / n) - 1;
+  const sk = s.reduce((p, x) => p + ((x - m) / sd) ** 3, 0) / n;
+  return { cagr, vol: sd * Math.sqrt(Y), sharpe: m / sd * Math.sqrt(Y), sortino: m / dn * Math.sqrt(Y), dd, calmar: cagr / -dd, skew: sk, total: v - 1 };
+}
+function corr(a, b) {
+  const n = a.length, ma = a.reduce((p, x) => p + x, 0) / n, mb = b.reduce((p, x) => p + x, 0) / n;
+  let c = 0, va = 0, vb = 0;
+  for (let i = 0; i < n; i++) { c += (a[i] - ma) * (b[i] - mb); va += (a[i] - ma) ** 2; vb += (b[i] - mb) ** 2; }
+  return { c: c / Math.sqrt(va * vb), beta: c / vb };
+}
+function rolling(r, w, f) {
+  const out = new Array(r.length).fill(null);
+  let s = 0, s2 = 0;
+  for (let i = 0; i < r.length; i++) {
+    s += r[i]; s2 += r[i] ** 2;
+    if (i >= w) { s -= r[i - w]; s2 -= r[i - w] ** 2; }
+    if (i >= w - 1) { const m = s / w, v = (s2 - w * m * m) / (w - 1); out[i] = f(m, Math.sqrt(Math.max(v, 0))); }
+  }
+  return out;
+}
+function rollCorr(a, b, w) {
+  const out = new Array(a.length).fill(null);
+  for (let i = w - 1; i < a.length; i += 1) {
+    if (i % 5 && i !== a.length - 1) continue;
+    out[i] = corr(a.slice(i - w + 1, i + 1), b.slice(i - w + 1, i + 1)).c;
+  }
+  return out;
+}
+
+const R = D.rets, NAV = Object.fromEntries(Object.entries(R).map(([k, v]) => [k, nav(v)]));
+const ST = Object.fromEntries(SER.map(s => [s.k, { full: stats(R[s.k]), train: stats(R[s.k], 0, splitIdx), test: stats(R[s.k], splitIdx) }]));
+const MON = Object.fromEntries(SER.map(s => [s.k, monthly(R[s.k])]));
+const yrsTO = Object.values(D.turnover_year), avgTO = yrsTO.reduce((p, x) => p + x, 0) / (N / Y);
+const avgTD = Object.values(D.trade_days_year).reduce((p, x) => p + x, 0) / (N / Y);
+
+document.getElementById('period').textContent = `${dates[0]} .. ${dates[N - 1]} (${(N / Y).toFixed(1)} years)`;
+document.getElementById('splitd').textContent = D.split;
+
+// ---- KPI strip ----
+{
+  const f = ST.strategy.full, q = corr(R.strategy, R.qqq);
+  const k = [
+    ['CAGR', pct(f.cagr), `baseline ${pct(ST.baseline.full.cagr)}`],
+    ['Volatility', pct(f.vol), `baseline ${pct(ST.baseline.full.vol)}`],
+    ['Sharpe, full', num(f.sharpe), `train ${num(ST.strategy.train.sharpe)} · test ${num(ST.strategy.test.sharpe)}`],
+    ['Max drawdown', pct(f.dd), `calmar ${num(f.calmar)}`],
+    ['Beta to QQQ', num(q.beta), `correlation ${num(q.c)}`],
+    ['Turnover / year', num(avgTO, 1) + '×', `${avgTD.toFixed(0)} trade days / year`],
+    ['Gross exposure', num(D.gross.reduce((p, x) => p + x, 0) / N) + '×', `at the 1.3× cap on ${pct(D.gross.filter(g => g > 1.29).length / N, 0)} of days`],
+  ];
+  document.getElementById('kpis').innerHTML = k.map(([a, b, c]) => `<div class="kpi"><span class="k">${a}</span><span class="v">${b}</span><span class="s">${c}</span></div>`).join('');
+}
+
+// ---- summary table ----
+{
+  const rows = [['CAGR', 'cagr', pct], ['Volatility', 'vol', pct], ['Sharpe', 'sharpe', num], ['Sortino', 'sortino', num], ['Max drawdown', 'dd', pct], ['Calmar', 'calmar', num], ['Skew (daily)', 'skew', num]];
+  let h = '<thead><tr class="grp"><th></th>' + ['Full period', 'Train (before split)', 'Test (after split)'].map(t => `<th colspan="4">${t}</th>`).join('') + '</tr><tr><th>Metric</th>';
+  for (let i = 0; i < 3; i++) h += SER.map(s => `<th>${s.name.split(' (')[0]}</th>`).join('');
+  h += '</tr></thead><tbody>';
+  for (const [lab, key, fmt] of rows) {
+    h += `<tr${key === 'sharpe' ? ' class="hl"' : ''}><td>${lab}</td>`;
+    for (const p of ['full', 'train', 'test']) h += SER.map(s => `<td>${fmt(ST[s.k][p][key])}</td>`).join('');
+    h += '</tr>';
+  }
+  const extra = [
+    ['Best month', s => Math.max(...MON[s].map(x => x[1])), pct],
+    ['Worst month', s => Math.min(...MON[s].map(x => x[1])), pct],
+    ['Positive months', s => MON[s].filter(x => x[1] > 0).length / MON[s].length, x => pct(x, 0)],
+    ['Correlation with QQQ', s => corr(R[s], R.qqq).c, num],
+  ];
+  for (const [lab, f, fmt] of extra) {
+    h += `<tr><td>${lab}</td>` + SER.map(s => `<td>${fmt(f(s.k))}</td>`).join('') + '<td colspan="8"></td></tr>';
+  }
+  document.getElementById('stats').innerHTML = h + '</tbody>';
+}
+
+// ---- drawdown episodes ----
+function episodes(r) {
+  const v = nav(r), out = []; let pk = 0, cur = null;
+  for (let i = 0; i < v.length; i++) {
+    if (v[i] >= v[pk]) { if (cur) { cur.rec = i; out.push(cur); cur = null; } pk = i; }
+    else { const d = v[i] / v[pk] - 1; if (!cur) cur = { start: pk, trough: i, depth: d }; if (d < cur.depth) { cur.depth = d; cur.trough = i; } }
+  }
+  if (cur) { cur.rec = null; out.push(cur); }
+  return out.sort((a, b) => a.depth - b.depth).slice(0, 6);
+}
+{
+  const ep = episodes(R.strategy);
+  let h = '<thead><tr><th>Peak</th><th>Trough</th><th>Recovered</th><th>Depth</th><th>Days to trough</th><th>Days to recover</th><th>QQQ over same window</th></tr></thead><tbody>';
+  for (const e of ep) {
+    const qq = NAV.qqq[e.trough] / NAV.qqq[e.start] - 1;
+    h += `<tr><td>${dates[e.start]}</td><td>${dates[e.trough]}</td><td>${e.rec == null ? 'not yet' : dates[e.rec]}</td><td class="neg">${pct(e.depth)}</td><td>${e.trough - e.start}</td><td>${e.rec == null ? '–' : e.rec - e.trough}</td><td class="${sgn(qq)}">${pct(qq)}</td></tr>`;
+  }
+  document.getElementById('ddtab').innerHTML = h + '</tbody>';
+}
+
+// ---- calendar years ----
+const YEARS = [...new Set(dates.map(d => +d.slice(0, 4)))];
+function byYear(r) {
+  const o = {};
+  r.forEach((x, i) => { const y = +dates[i].slice(0, 4); (o[y] ??= []).push(x); });
+  return o;
+}
+const YR = Object.fromEntries(SER.map(s => [s.k, byYear(R[s.k])]));
+{
+  let h = '<thead><tr><th>Year</th>' + SER.map(s => `<th>${s.name.split(' (')[0]}</th>`).join('') + '<th>Strategy − baseline</th><th>Strategy vol</th><th>Strategy Sharpe</th><th>Strategy max DD</th><th>Turnover</th></tr></thead><tbody>';
+  for (const y of YEARS) {
+    const tot = k => YR[k][y].reduce((p, x) => p * (1 + x), 1) - 1;
+    const st = stats(YR.strategy[y], 0, YR.strategy[y].length);
+    const partial = (y === YEARS[0] || y === YEARS[YEARS.length - 1]) ? ' *' : '';
+    const diff = tot('strategy') - tot('baseline');
+    h += `<tr><td>${y}${partial}</td>` + SER.map(s => { const t = tot(s.k); return `<td class="${sgn(t)}">${pct(t)}</td>`; }).join('') +
+      `<td class="${sgn(diff)}">${(diff > 0 ? '+' : '') + pct(diff)}</td><td>${pct(st.vol)}</td><td>${num(st.sharpe)}</td><td>${pct(st.dd)}</td><td>${num(D.turnover_year[y] ?? 0, 1)}×</td></tr>`;
+  }
+  const f = k => ST[k].full;
+  h += '<tr class="hl"><td>Full period, CAGR</td>' + SER.map(s => `<td>${pct(f(s.k).cagr)}</td>`).join('') + `<td>${pct(f('strategy').cagr - f('baseline').cagr)}</td><td>${pct(f('strategy').vol)}</td><td>${num(f('strategy').sharpe)}</td><td>${pct(f('strategy').dd)}</td><td>${num(avgTO, 1)}×</td></tr>`;
+  document.getElementById('yrtab').innerHTML = h + '</tbody><caption style="caption-side:bottom;text-align:left;padding-top:8px;font-size:12px;color:var(--muted)">* partial year</caption>';
+}
+
+// ---- monthly heatmap ----
+function renderHeat() {
+  const m = new Map(MON.strategy);
+  const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const pb = css('--pos-bg'), nb = css('--neg-bg');
+  let h = '<thead><tr><th>Year</th>' + MN.map(x => `<th style="text-align:center">${x}</th>`).join('') + '<th style="text-align:center">Year</th></tr></thead><tbody>';
+  for (const y of YEARS) {
+    h += `<tr><td>${y}</td>`;
+    for (let i = 1; i <= 12; i++) {
+      const v = m.get(`${y}-${String(i).padStart(2, '0')}`);
+      if (v == null) { h += '<td></td>'; continue; }
+      const a = Math.min(Math.abs(v) / 0.04, 1) * 0.55 + 0.06;
+      h += `<td style="background:rgba(${v >= 0 ? pb : nb},${a.toFixed(2)})">${(v * 100).toFixed(1)}</td>`;
+    }
+    const t = YR.strategy[y].reduce((p, x) => p * (1 + x), 1) - 1;
+    h += `<td class="${sgn(t)}">${(t * 100).toFixed(1)}</td></tr>`;
+  }
+  document.getElementById('heat').innerHTML = h + '</tbody>';
+}
+
+// ---- stress table ----
+{
+  const q = MON.qqq.slice().sort((a, b) => a[1] - b[1]).slice(0, 10);
+  const ms = new Map(MON.strategy), mb = new Map(MON.baseline), me = new Map(MON.equal);
+  let h = '<thead><tr><th>Month</th><th>QQQ</th><th>Strategy</th><th>Baseline</th><th>Equal wt</th></tr></thead><tbody>';
+  for (const [k, v] of q) h += `<tr><td>${k}</td><td class="neg">${pct(v)}</td>` + [ms, mb, me].map(m => { const x = m.get(k); return `<td class="${sgn(x)}">${pct(x)}</td>`; }).join('') + '</tr>';
+  document.getElementById('stress').innerHTML = h + '</tbody>';
+}
+
+const tot = Object.values(D.cost_year).reduce((p, x) => p + x, 0);
+document.getElementById('costnote').textContent = `Estimated cost drag: ${pct(tot / (N / Y), 2)} a year (${pct(tot, 1)} in total over the period), from the per-ETF cost charged on each trade. The heavier years are when the trend tilt flips sign on several assets at once.`;
+
+// ---- charts ----
+const ROLL = (() => {
+  const diff = R.strategy.map((x, i) => x - R.baseline[i]);
+  return {
+    rs: Object.fromEntries(SER.map(s => [s.k, rolling(R[s.k], Y, (m, sd) => m / sd * Math.sqrt(Y))])),
+    rv: Object.fromEntries(SER.map(s => [s.k, rolling(R[s.k], 63, (m, sd) => sd * Math.sqrt(Y))])),
+    rc: { strategy: rollCorr(R.strategy, R.qqq, Y), baseline: rollCorr(R.baseline, R.qqq, Y), equal: rollCorr(R.equal, R.qqq, Y) },
+    ri: { strategy: rolling(diff, Y, (m, sd) => sd > 0 ? m / sd * Math.sqrt(Y) : null) },
+  };
+})();
+const charts = [];
+const hidden = new Set();
+const ds = (ser, arr, step = 1) => { const n = W.b - W.a + 1, st = Math.max(1, Math.round(step * n / N)), o = []; for (let i = W.a; i <= W.b; i += st) if (arr[i] != null) o.push({ x: xf[i], y: arr[i] }); if ((W.b - W.a) % st && arr[W.b] != null) o.push({ x: xf[W.b], y: arr[W.b] }); return o; };
+const splitX = xf[splitIdx];
+const splitPlugin = { id: 'split', afterDatasetsDraw(c) { if (!c.options.plugins.split || splitIdx < W.a || splitIdx > W.b) return; const xs = c.scales.x, { top, bottom } = c.chartArea, x = xs.getPixelForValue(splitX); const g = c.ctx; g.save(); g.strokeStyle = css('--muted'); g.setLineDash([4, 4]); g.lineWidth = 1; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]); g.fillStyle = css('--muted'); g.font = '11px ' + css('--sans'); g.fillText('train | test', x + 4, top + 12); g.restore(); } };
+Chart.register(splitPlugin);
+
+const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function xTicks() {
+  const span = xf[W.b] - xf[W.a];
+  if (span > 10) return { stepSize: 2, callback: v => Number.isInteger(v) ? v : '' };
+  if (span > 4) return { stepSize: 1, callback: v => Number.isInteger(v) ? v : '' };
+  const st = span > 1.5 ? 0.25 : 1 / 12;
+  return { stepSize: st, callback: v => { const y = Math.floor(v + 1e-6), m = Math.round((v - y) * 12) % 12; return st < 0.2 || m % 3 === 0 ? (m === 0 ? String(y) : `${MN[m]} ${String(y).slice(2)}`) : ''; } };
+}
+function baseOpts(o = {}) {
+  const fg = css('--muted'), grid = css('--grid');
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true,
+    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+    plugins: { legend: { display: false }, split: true, tooltip: { callbacks: {} } },
+    elements: { point: { radius: 0, hoverRadius: 3 }, line: { borderJoinStyle: 'round' } },
+    scales: {
+      x: { type: 'linear', min: xf[W.a], max: xf[W.b], ticks: { color: fg, ...xTicks() }, grid: { color: grid } },
+      y: { ticks: { color: fg }, grid: { color: grid } },
+    }, ...o,
+  };
+}
+const dateTip = { title: items => { const x = items[0].parsed.x; const i = Math.min(N - 1, Math.max(0, xf.findIndex(v => v >= x))); return dates[i]; } };
+
+function lineChart(id, arrs, yfmt, step = 1, extra = {}) {
+  const data = { datasets: SER.filter(s => arrs[s.k]).map(s => ({ label: s.name, key: s.k, data: ds(s, arrs[s.k], step), borderColor: css(s.c), borderWidth: s.w, hidden: hidden.has(s.k), fill: false })) };
+  const o = baseOpts();
+  o.scales.y.ticks.callback = yfmt;
+  o.plugins.tooltip.callbacks = { ...dateTip, label: c => `${c.dataset.label}: ${yfmt(c.parsed.y)}` };
+  Object.assign(o.scales.y, extra.y || {});
+  return new Chart(document.getElementById(id), { type: 'line', data, options: o });
+}
+
+function legend(id, keys) {
+  const el = document.getElementById(id);
+  el.innerHTML = SER.filter(s => keys.includes(s.k)).map(s => `<button type="button" id="${id}-${s.k}" data-k="${s.k}" aria-pressed="${!hidden.has(s.k)}"><span class="sw" style="background:var(${s.c})"></span>${s.name}</button>`).join('');
+  el.onclick = e => { const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k; hidden.has(k) ? hidden.delete(k) : hidden.add(k); render(); };
+}
+
+function render() {
+  const y0 = +dates[W.a].slice(0, 4), y1 = +dates[W.b].slice(0, 4);
+  const YW = YEARS.filter(y => y >= y0 && y <= y1);
+  charts.splice(0).forEach(c => c.destroy());
+  legend('lg-nav', SER.map(s => s.k)); legend('lg-roll', SER.map(s => s.k));
+  document.getElementById('lg-cls').innerHTML = CLS.map((c, i) => `<span style="display:inline-flex;gap:6px;align-items:center"><span class="sw box" style="background:var(${CLSC[i]})"></span>${c}</span>`).join('');
+  const P = v => (v * 100).toFixed(0) + '%';
+
+  const NAVW = Object.fromEntries(Object.entries(R).map(([k, r]) => { const o = new Array(N).fill(null); let v = 1; for (let i = W.a; i <= W.b; i++) o[i] = (v *= 1 + r[i]); return [k, o]; }));
+  const nv = Object.values(NAVW).flatMap(a => a.slice(W.a, W.b + 1)), wide = Math.max(...nv) / Math.min(...nv) > 4;
+  const navTicks = wide ? [0.5, 1, 2, 3, 5, 10, 20, 30] : [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.2, 1.5, 2, 2.5, 3, 4, 5];
+  charts.push(lineChart('c-nav', NAVW, v => '$' + (+v).toFixed(v < 2 ? 2 : 1), 2, { y: { type: 'logarithmic', ticks: { color: css('--muted'), callback: v => navTicks.some(t => Math.abs(t - v) < 1e-9) ? '$' + v : '' } } }));
+  renderWinStats();
+
+  { // drawdown, strategy + baseline + QQQ
+    const dd = {}; for (const s of SER) { let pk = 1; dd[s.k] = NAVW[s.k].map(v => v == null ? null : (pk = Math.max(pk, v), v / pk - 1)); }
+    const c = lineChart('c-dd', dd, P, 2);
+    c.data.datasets.forEach(d => { if (d.key === 'strategy') { d.fill = 'origin'; d.backgroundColor = css('--s1') + '33'; } });
+    c.update(); charts.push(c);
+  }
+  charts.push(lineChart('c-rs', ROLL.rs, v => (+v).toFixed(1), 3));
+  charts.push(lineChart('c-rv', ROLL.rv, P, 3));
+  charts.push(lineChart('c-rc', ROLL.rc, v => (+v).toFixed(1), 5, { y: { min: -0.6, max: 1 } }));
+  const ri = ROLL.ri;
+  { const c = lineChart('c-ri', ri, v => (+v).toFixed(1), 3); c.data.datasets[0].fill = 'origin'; c.data.datasets[0].backgroundColor = css('--s1') + '26'; c.data.datasets[0].label = 'Trend + VRP tilts, 1-year info ratio'; c.update(); charts.push(c); }
+
+  { // calendar bars
+    const o = baseOpts(); o.parsing = true; o.normalized = false; o.plugins.split = false;
+    o.scales.x = { type: 'category', ticks: { color: css('--muted') }, grid: { display: false } };
+    o.scales.y.ticks.callback = P; o.interaction = { mode: 'index', intersect: false };
+    o.plugins.legend = { display: true, labels: { color: css('--fg'), boxWidth: 12, boxHeight: 12 } };
+    o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label}: ${pct(c.parsed.y)}` };
+    charts.push(new Chart(document.getElementById('c-yr'), { type: 'bar', data: { labels: YW, datasets: SER.map(s => ({ label: s.name, data: YW.map(y => YR[s.k][y].reduce((p, x) => p * (1 + x), 1) - 1), backgroundColor: css(s.c), borderRadius: 2 })) }, options: o }));
+  }
+
+  { // class stacked area
+    const step = 5, o = baseOpts();
+    o.scales.y = { stacked: true, min: 0, max: 1.4, ticks: { color: css('--muted'), callback: P, stepSize: 0.2 }, grid: { color: css('--grid') } };
+    o.plugins.tooltip.callbacks = { ...dateTip, label: c => `${c.dataset.label}: ${pct(c.parsed.y, 0)}` };
+    o.interaction = { mode: 'index', intersect: false };
+    const dsets = CLS.map((c, i) => ({ label: c, data: ds(null, (D.class_w[c] ?? new Array(N).fill(0)).map(v => Math.max(v, 0)), step), backgroundColor: css(CLSC[i]), borderColor: css(CLSC[i]), borderWidth: 0, fill: i === 0 ? 'origin' : '-1', pointRadius: 0 }));
+    charts.push(new Chart(document.getElementById('c-cls'), { type: 'line', data: { datasets: dsets }, options: o }));
+  }
+
+  { // per-ETF bars
+    const tick = Object.keys(D.asset_w_avg).sort((a, b) => D.asset_w_avg[b] - D.asset_w_avg[a]);
+    const colorOf = t => css(CLSC[CLS.indexOf(D.asset_class[t])]);
+    const mk = (id, sets, fmt) => {
+      const o = baseOpts(); o.parsing = true; o.normalized = false; o.plugins.split = false; o.indexAxis = 'y';
+      o.scales = { x: { ticks: { color: css('--muted'), callback: fmt }, grid: { color: css('--grid') } }, y: { ticks: { color: css('--fg'), autoSkip: false, font: { family: css('--mono'), size: 11 } }, grid: { display: false } } };
+      o.interaction = { mode: 'index', axis: 'y', intersect: false };
+      o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label}: ${fmt(c.parsed.x)}` };
+      if (sets.length > 1) o.plugins.legend = { display: true, labels: { color: css('--fg'), boxWidth: 12, boxHeight: 12 } };
+      charts.push(new Chart(document.getElementById(id), { type: 'bar', data: { labels: tick, datasets: sets }, options: o }));
+    };
+    mk('c-aw', [
+      { label: 'Average weight', data: tick.map(t => D.asset_w_avg[t]), backgroundColor: tick.map(colorOf), borderRadius: 2 },
+      { label: 'Latest weight ' + dates[N - 1], data: tick.map(t => D.asset_w_last[t]), backgroundColor: 'transparent', borderColor: css('--fg'), borderWidth: 1.2, borderRadius: 2 },
+    ], v => pct(v, 0));
+    const tc = tick.slice().sort((a, b) => D.asset_contrib_total[b] - D.asset_contrib_total[a]);
+    const o2 = tc.map(t => D.asset_contrib_total[t]);
+    const o = baseOpts(); o.parsing = true; o.normalized = false; o.plugins.split = false; o.indexAxis = 'y';
+    o.scales = { x: { ticks: { color: css('--muted'), callback: v => pct(v, 0) }, grid: { color: css('--grid') } }, y: { ticks: { color: css('--fg'), autoSkip: false, font: { family: css('--mono'), size: 11 } }, grid: { display: false } } };
+    o.plugins.tooltip.callbacks = { label: c => `contribution: ${pct(c.parsed.x, 1)}` };
+    charts.push(new Chart(document.getElementById('c-ac'), { type: 'bar', data: { labels: tc, datasets: [{ data: o2, backgroundColor: tc.map(colorOf), borderRadius: 2 }] }, options: o }));
+  }
+
+  { // attribution stacked bars
+    const o = baseOpts(); o.parsing = true; o.normalized = false; o.plugins.split = false;
+    o.scales = { x: { stacked: true, type: 'category', ticks: { color: css('--muted') }, grid: { display: false } }, y: { stacked: true, ticks: { color: css('--muted'), callback: v => pct(v, 0) }, grid: { color: css('--grid') } } };
+    o.interaction = { mode: 'index', intersect: false };
+    o.plugins.legend = { display: true, labels: { color: css('--fg'), boxWidth: 12, boxHeight: 12 } };
+    o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label}: ${pct(c.parsed.y)}`, footer: it => 'total: ' + pct(it.reduce((p, c) => p + c.parsed.y, 0)) };
+    const sets = CLS.map((c, i) => ({ label: c, data: YW.map(y => (D.class_contrib_year[c] || {})[y] ?? 0), backgroundColor: css(CLSC[i]), borderRadius: 1 }));
+    charts.push(new Chart(document.getElementById('c-attr'), { type: 'bar', data: { labels: YW, datasets: sets }, options: o }));
+  }
+
+  { // trading
+    const mk = (id, obj, fmt) => {
+      const o = baseOpts(); o.parsing = true; o.normalized = false; o.plugins.split = false;
+      o.scales = { x: { type: 'category', ticks: { color: css('--muted') }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: css('--muted'), callback: fmt }, grid: { color: css('--grid') } } };
+      o.plugins.tooltip.callbacks = { label: c => fmt(c.parsed.y) };
+      charts.push(new Chart(document.getElementById(id), { type: 'bar', data: { labels: YW, datasets: [{ data: YW.map(y => obj[y] ?? 0), backgroundColor: css('--s1'), borderRadius: 2 }] }, options: o }));
+    };
+    mk('c-to', D.turnover_year, v => (+v).toFixed(1) + '×');
+    mk('c-td', D.trade_days_year, v => (+v).toFixed(0));
+  }
+
+  { // histogram of monthly returns
+    const bins = []; for (let b = -0.10; b < 0.10 - 1e-9; b += 0.01) bins.push(+b.toFixed(2));
+    const h = arr => bins.map(b => arr.filter(([, x]) => x >= b && x < b + 0.01).length / arr.length);
+    const clip = arr => arr.map(([k, x]) => [k, Math.max(-0.0999, Math.min(0.0999, x))]);
+    const o = baseOpts(); o.parsing = true; o.normalized = false; o.plugins.split = false;
+    o.scales = { x: { type: 'category', ticks: { color: css('--muted'), callback: (v, i) => i % 2 ? '' : (bins[i] * 100).toFixed(0) + '%' }, grid: { display: false } }, y: { ticks: { color: css('--muted'), callback: v => pct(v, 0) }, grid: { color: css('--grid') } } };
+    o.interaction = { mode: 'index', intersect: false };
+    o.plugins.legend = { display: true, labels: { color: css('--fg'), boxWidth: 12, boxHeight: 12 } };
+    o.plugins.tooltip.callbacks = { title: it => `${(bins[it[0].dataIndex] * 100).toFixed(0)}% to ${(bins[it[0].dataIndex] * 100 + 1).toFixed(0)}%`, label: c => `${c.dataset.label}: ${pct(c.parsed.y, 0)} of months` };
+    charts.push(new Chart(document.getElementById('c-hist'), { type: 'bar', data: { labels: bins, datasets: [
+      { label: 'Strategy', data: h(clip(MON.strategy)), backgroundColor: css('--s1'), barPercentage: 1, categoryPercentage: 0.9 },
+      { label: 'Equal weight', data: h(clip(MON.equal)), backgroundColor: css('--s3') + 'aa', barPercentage: 1, categoryPercentage: 0.9 },
+    ] }, options: o }));
+  }
+  renderHeat();
+  renderSigHeat();
+}
+
+// ---- signal heatmap ----
+const SG = D.sig;
+const SGX = SG.dates.map(d => { const [y, m, dd] = d.split('-').map(Number); return y + (m - 1) / 12 + (dd - 1) / 365; });
+const SIG_KEYS = ['total', 'prior', 'trend', 'ewmac', 'vrp', 'weight'].filter(k => SG.series[k]);
+let sigKey = 'total', sigMode = 'score';
+function sigScale(key, mode) {
+  if (key === 'weight') return { lo: 0, hi: 0.3, seq: true };
+  if (key === 'total') return { lo: -0.6, hi: 0.6 };
+  if (key === 'prior') return { lo: -0.4, hi: 0.4 };
+  const cap = key === 'trend' ? 1 : 2, k = mode === 'sharpe' ? SG.series[key].k : 1;
+  return { lo: -cap * k, hi: cap * k };
+}
+function sigColor(v, sc) {
+  if (v == null) return null;
+  if (sc.seq) { const a = Math.min(Math.max(v / sc.hi, 0), 1); return `rgba(${hexRgb(css('--s1'))},${(0.04 + 0.9 * a).toFixed(3)})`; }
+  const a = Math.min(Math.abs(v) / sc.hi, 1);
+  return `rgba(${v >= 0 ? css('--pos-bg') : css('--neg-bg')},${(0.04 + 0.86 * a).toFixed(3)})`;
+}
+function hexRgb(h) { h = h.replace('#', ''); if (h.length === 3) h = [...h].map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)).join(','); }
+function sigControls() {
+  const pick = document.getElementById('sig-pick'), mode = document.getElementById('sig-mode');
+  pick.innerHTML = SIG_KEYS.map(k => `<button type="button" data-k="${k}" aria-pressed="${k === sigKey}">${SG.series[k].label}</button>`).join('');
+  const modal = !['total', 'weight', 'prior'].includes(sigKey);
+  mode.style.display = modal ? '' : 'none';
+  mode.innerHTML = [['score', 'Score'], ['sharpe', 'Contribution to Sharpe view (k × score)']].map(([k, l]) => `<button type="button" data-k="${k}" aria-pressed="${k === sigMode}">${l}</button>`).join('');
+  pick.onclick = e => { const b = e.target.closest('button'); if (!b) return; sigKey = b.dataset.k; sigControls(); renderSigHeat(); };
+  mode.onclick = e => { const b = e.target.closest('button'); if (!b) return; sigMode = b.dataset.k; sigControls(); renderSigHeat(); };
+}
+let sigGeom = null;
+function renderSigHeat() {
+  const cv = document.getElementById('c-sig'), wrap = document.getElementById('sig-wrap');
+  const ser = SG.series[sigKey], A = SG.assets, k = (sigMode === 'sharpe' && !['total', 'weight', 'prior'].includes(sigKey)) ? ser.k : 1;
+  const sc = sigScale(sigKey, sigMode);
+  const x0 = xf[W.a], x1 = xf[W.b];
+  const cols = []; SGX.forEach((x, j) => { if (x >= x0 - 1e-9 && x <= x1 + 1e-9) cols.push(j); });
+  const left = 52, right = 8, top = 6, bottom = 22, rowH = 16, gap = 4;
+  const groups = []; let prev = null; A.forEach((t, i) => { const c = D.asset_class[t]; if (c !== prev) { groups.push(i); prev = c; } });
+  const Wd = wrap.clientWidth, H = top + A.length * rowH + (groups.length - 1) * gap + bottom;
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(Wd * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + 'px';
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, Wd, H);
+  const pw = Wd - left - right, cw = pw / Math.max(cols.length, 1);
+  const rowY = A.map((t, i) => top + i * rowH + groups.filter(s => s <= i && s > 0).length * gap);
+  g.font = '11px ' + css('--mono'); g.textBaseline = 'middle'; g.textAlign = 'right'; g.fillStyle = css('--fg');
+  A.forEach((t, i) => {
+    g.fillText(t, left - 6, rowY[i] + rowH / 2);
+    const vals = ser.values[i];
+    cols.forEach((j, c) => { const v = vals[j] == null ? null : vals[j] * k; const col = sigColor(v, sc); if (!col) return; g.fillStyle = col; g.fillRect(left + c * cw, rowY[i], Math.ceil(cw + 0.5), rowH - 1); });
+    g.fillStyle = css('--fg');
+  });
+  // x ticks
+  const tk = xTicks(); g.textAlign = 'center'; g.fillStyle = css('--muted');
+  const st = tk.stepSize; for (let v = Math.ceil(x0 / st) * st; v <= x1 + 1e-9; v += st) { const lab = tk.callback(+v.toFixed(6)); if (lab === '') continue; const px = left + (v - x0) / (x1 - x0) * pw; g.fillText(String(lab), px, H - 9); }
+  // split marker
+  if (splitIdx >= W.a && splitIdx <= W.b) { const px = left + (splitX - x0) / (x1 - x0) * pw; g.strokeStyle = css('--fg'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(px, top); g.lineTo(px, H - bottom); g.stroke(); g.setLineDash([]); }
+  sigGeom = { left, pw, cw, cols, rowY, rowH, k };
+  // legend scale and note
+  const lo = sc.seq ? 0 : sc.lo, hi = sc.hi;
+  const grad = sc.seq ? `linear-gradient(90deg, rgba(${hexRgb(css('--s1'))},.04), rgba(${hexRgb(css('--s1'))},.94))`
+    : `linear-gradient(90deg, rgba(${css('--neg-bg')},.9), rgba(${css('--neg-bg')},.04) 50%, rgba(${css('--pos-bg')},.04) 50%, rgba(${css('--pos-bg')},.9))`;
+  const f = v => sigKey === 'weight' ? pct(v, 0) : (+v).toFixed(2);
+  document.getElementById('sig-scale').innerHTML = `<span>${f(lo)}</span><span class="bar" style="background:${grad}"></span><span>${f(hi)}${sc.seq ? '' : '+'}</span><span>${k !== 1 ? `${ser.label} × ${ser.k}` : ser.label}, ${k !== 1 ? 'Sharpe units' : ser.unit}</span>`;
+  const notes = {
+    total: 'Each asset’s expected return per unit of vol, as the optimizer sees it: the class prior plus every alpha times its weight. Sampled weekly, as traded (lagged one day).',
+    prior: 'The Sharpe prior. Constant by asset class, except IEF and TLT: half the 0.25 judgment prior, half the long yield minus the 3-month bill over long-run vol, so it falls when the curve flattens or inverts.',
+    trend: 'Price against its 200-day EMA in units of monthly vol, squashed by tanh. Weight 0.05.',
+    ewmac: 'EMA(64) minus EMA(256) in daily price vols, times Carver’s scalar, divided by 10 and capped at ±2. Weight 0.037.',
+    vrp: 'One market-wide z-score (VIX² minus SPY realized variance) applied to the 12 equity ETFs only, so those rows are identical; other assets have no view. Weight 0.091.',
+    weight: 'The resulting position, as a share of capital, sampled weekly.',
+  };
+  document.getElementById('sig-note').textContent = notes[sigKey] + ' Rows are grouped by asset class; the dashed line marks the train / test split.';
+}
+{
+  const cv = document.getElementById('c-sig'), tip = document.getElementById('sig-tip');
+  cv.addEventListener('mousemove', e => {
+    if (!sigGeom) return; const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const c = Math.floor((x - sigGeom.left) / sigGeom.cw), i = sigGeom.rowY.findIndex(ry => y >= ry && y < ry + sigGeom.rowH);
+    if (c < 0 || c >= sigGeom.cols.length || i < 0) { tip.style.display = 'none'; return; }
+    const j = sigGeom.cols[c], v = SG.series[sigKey].values[i][j];
+    const val = v == null ? 'no view' : sigKey === 'weight' ? pct(v, 1) : (v * sigGeom.k).toFixed(3);
+    tip.innerHTML = `${SG.dates[j]} · <b>${SG.assets[i]}</b><br>${val}`;
+    tip.style.display = 'block'; tip.style.left = Math.min(x + 12, r.width - 150) + 'px'; tip.style.top = (y + 12) + 'px';
+  });
+  cv.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  new ResizeObserver(() => renderSigHeat()).observe(document.getElementById('sig-wrap'));
+}
+sigControls();
+
+function renderWinStats() {
+  const cols = [['CAGR', 'cagr', pct], ['Total', 'total', pct], ['Volatility', 'vol', pct], ['Sharpe', 'sharpe', num], ['Max drawdown', 'dd', pct], ['Calmar', 'calmar', num]];
+  let h = '<thead><tr><th>Chart period</th>' + cols.map(c => `<th>${c[0]}</th>`).join('') + '</tr></thead><tbody>';
+  for (const s of SER) { const st = stats(R[s.k], W.a, W.b + 1); h += `<tr${s.k === 'strategy' ? ' class="hl"' : ''}><td>${s.name}</td>` + cols.map(([, k, f]) => `<td class="${k === 'total' || k === 'cagr' ? sgn(st[k]) : ''}">${f(st[k])}</td>`).join('') + '</tr>'; }
+  document.getElementById('winstats').innerHTML = h + '</tbody>';
+}
+const MIN_SPAN = 21;
+const ia = document.getElementById('win-a'), ib = document.getElementById('win-b');
+ia.max = ib.max = N - 1;
+const at = d => Math.max(0, dates.findIndex(x => x >= d));
+const back = yrs => { const t = new Date(dates[N - 1]); t.setFullYear(t.getFullYear() - yrs); return at(t.toISOString().slice(0, 10)); };
+const PRESETS = [
+  ['Full', 0, N - 1], ['Train', 0, splitIdx - 1], ['Test', splitIdx, N - 1],
+  ['2008 crisis', 0, at('2009-06-30')], ['Since 2010', at('2010-01-01'), N - 1], ['Since 2015', at('2015-01-01'), N - 1],
+  ['Since 2020', at('2020-01-01'), N - 1], ['2022 to date', at('2022-01-01'), N - 1], ['Last 3 years', back(3), N - 1], ['Last year', back(1), N - 1],
+].filter(([, a, b]) => b - a >= MIN_SPAN);
+document.getElementById('presets').innerHTML = PRESETS.map(([l], i) => `<button type="button" data-i="${i}">${l}</button>`).join('');
+document.getElementById('presets').onclick = e => { const b = e.target.closest('button'); if (!b) return; const [, a, z] = PRESETS[+b.dataset.i]; setWin(a, z); };
+let queued = false;
+function setWin(a, b) {
+  W.a = Math.max(0, Math.min(a, N - 1 - MIN_SPAN)); W.b = Math.min(N - 1, Math.max(b, W.a + MIN_SPAN));
+  ia.value = W.a; ib.value = W.b;
+  const yrs = (W.b - W.a + 1) / Y;
+  document.getElementById('win-label').textContent = `${dates[W.a]} .. ${dates[W.b]} · ${yrs >= 1 ? yrs.toFixed(1) + ' years' : Math.round(yrs * 12) + ' months'}`;
+  document.querySelectorAll('#presets button').forEach(btn => { const [, pa, pb] = PRESETS[+btn.dataset.i]; btn.setAttribute('aria-pressed', pa === W.a && pb === W.b); });
+  if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; render(); }); }
+}
+ia.oninput = () => setWin(+ia.value, Math.max(W.b, +ia.value + MIN_SPAN));
+ib.oninput = () => setWin(Math.min(W.a, +ib.value - MIN_SPAN), +ib.value);
+
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+setWin(0, N - 1);
+const mq = matchMedia('(prefers-color-scheme: dark)');
+mq.addEventListener?.('change', render);
+new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>
