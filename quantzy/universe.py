@@ -51,19 +51,6 @@ class Universe:
         return cls(assets=[Asset(ticker=t) for t in tickers], name=name)
 
 
-def default_etf_universe() -> Universe:
-    """The starter universe: broad-equity ETFs plus a T-bill (cash-equivalent) sleeve."""
-    return Universe(
-        name="default_etf",
-        assets=[
-            Asset("QQQ", "Invesco QQQ (Nasdaq-100)", "etf"),
-            Asset("VOO", "Vanguard S&P 500", "etf"),
-            Asset("URTH", "iShares MSCI World", "etf"),
-            Asset("SGOV", "iShares 0-3 Month Treasury", "cash_equivalent"),
-        ],
-    )
-
-
 def sector_etf_universe() -> Universe:
     """The nine original Select Sector SPDRs plus a short-Treasury cash sleeve.
 
