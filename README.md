@@ -65,8 +65,8 @@ Two things make the production slice trustworthy:
 | `quantzy.strategy`     | **shared** | `Strategy.decide()` → `Decision`. The seam. |
 | `quantzy.data`         | shared     | `DataReader`, `YFinanceReader`, `CachedReader`, `DataBundle` |
 | `quantzy.universe`     | shared     | `Asset` / `Universe` |
-| `quantzy.signals`      | shared     | `Signal` base, `Momentum`, `Value`, `EmaSpread`, normalizers, indicators |
-| `quantzy.risk`         | shared     | `SampleCovariance`, `LedoitWolfCovariance` → Σ (factor model stubbed) |
+| `quantzy.signals`      | shared     | `Signal` base; trend (`VolScaledTrend`, `EwmacTrend`), priors (`SharpePrior`, `CarrySharpePrior`), `VarianceRiskPremium`, others; normalizers, indicators |
+| `quantzy.risk`         | shared     | `SampleCovariance`, `ewma_blend`, `LedoitWolfCovariance`, `StateScaledRisk` → Σ |
 | `quantzy.optimize`     | shared     | `MeanVariance` / `MinVariance` / `MaxSharpe`, constraints, cost models |
 | `quantzy.construction` | shared     | `Portfolio`, `Trade`, target-vs-current diff |
 | `quantzy.metrics`      | shared     | Sharpe, drawdown, turnover — scores any return series |
@@ -74,26 +74,41 @@ Two things make the production slice trustworthy:
 | `quantzy.research`     | *tooling*  | `information_coefficient`, `ic_decay`, `holdout_tune` |
 | `quantzy.portfolio`    | shared     | `PortfolioConfig`: book-level settings shared by every alpha |
 | `quantzy.strategies`   | **saved**  | Strategies a production job may run, e.g. `core_multiasset` |
+| `quantzy.jobs`         | production | `daily`: run a saved strategy against the real book, emit orders |
 
 `backtest` and `research` are tooling: nothing in them is on the path a live run takes.
-Production imports `strategy`, `data`, `signals`, `risk`, `optimize`, `construction` — and
-nothing else.
+Production imports `strategy`, `data`, `signals`, `risk`, `optimize`, `construction`,
+`portfolio` and `strategies` — and nothing else.
+
+Outside the package:
+
+| Folder           | What it is |
+|------------------|------------|
+| `research/`      | Records of past studies, with an [index of results](research/README.md). Not maintained against the current code. |
+| `tools/tearsheet/` | `export.py` builds the `core_multiasset` backtest tear-sheet (one HTML page). |
+| `tests/`         | Synthetic data, no network. |
 
 ## Quick start
 
 ```bash
-uv sync                                    # create .venv from pyproject + uv.lock
-uv run python -m examples.daily_rebalance  # production shape: what do I hold today?
-uv run python -m examples.backtest         # walk-forward through history
-uv run python -m examples.research_signal  # IC, then a parameter sweep
-uv run pytest                              # synthetic data, no network
+uv sync                                      # create .venv from pyproject + uv.lock
+uv run pytest                                # synthetic data, no network
+
+# production: today's target book and the orders to reach it
+uv run python -m quantzy.jobs.daily --nav 3000000 --holdings positions.csv --out orders.csv
+
+# the backtest tear-sheet for the saved strategy
+uv run python tools/tearsheet/export.py      # -> .cache/tearsheet/core_multiasset.html
 ```
 
-Run from the repo root, as modules (`-m`), so `examples.strategy_def` resolves. The first
-run fetches from Yahoo Finance and caches to `.cache/` (parquet); later runs work offline.
+`positions.csv` holds `ticker,shares` (or `ticker,weight`). With no holdings file the job
+funds the account from cash. It fetches fresh prices; research code reads through
+`CachedReader`, which caches to `.cache/` (parquet) and never refreshes a request without an
+end date.
 
-All three examples import their strategy from `examples/strategy_def.py`. That is the point:
-the strategy being researched is the strategy being backtested is the strategy being traded.
+The job, the tear-sheet and every research script build the strategy from the same module,
+`quantzy/strategies/core_multiasset.py`: the strategy being researched is the strategy being
+backtested is the strategy being traded.
 
 ## Saved strategies
 
@@ -159,12 +174,11 @@ the IC tooling.
 
 Not yet built:
 
-- **`quantzy.live`** — the production runner. The seam it plugs into exists and is tested;
-  what is missing is a `PositionSource` (where the real book comes from), an execution
-  handler, and run-state persistence. `examples/daily_rebalance.py` is the shape it takes.
-- **Cache freshness.** `CachedReader` keys on `(tickers, start, end, field)` with no TTL, so
-  an `end=None` request caches forever — a daily job would replay stale prices indefinitely.
-  `daily_rebalance.py` checks the age of the last bar and warns; the reader itself does not.
+- **Broker integration.** `quantzy.jobs.daily` reads the book from a file and writes orders to
+  a file; there is no broker API connection, order execution or run-state persistence.
+- **Cache freshness in research.** `CachedReader` keys on `(tickers, start, end, field)` with
+  no TTL, so an `end=None` request caches forever. The daily job bypasses it and warns on a
+  stale close; research code does not. Delete `.cache/prices` to refresh.
 - **Point-in-time fundamentals.** `DataBundle` carries arbitrary panels, but there is no
   vintage handling yet (what a filing said when published, vs as later restated).
-- **`FactorRiskModel`** is a typed stub.
+- **A factor risk model** for large universes.

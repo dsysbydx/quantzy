@@ -35,11 +35,19 @@ import numpy as np
 import pandas as pd
 
 from quantzy.construction import Portfolio
+from quantzy.data import YFinanceReader
 from quantzy.data.bundle import DataBundle
 from quantzy.strategies import get
 
 #: Orders smaller than this many dollars are dropped (a minimum commission would dominate).
 MIN_ORDER = 100.0
+#: Warn when the latest complete close is older than this many business days.
+STALE_DAYS = 3
+
+
+def fresh_bundle(module) -> DataBundle:
+    """The strategy's data straight from the source, bypassing the research cache."""
+    return module.load(reader=YFinanceReader())
 
 
 def read_holdings(path: str | Path | None, prices: pd.Series, nav: float) -> pd.Series:
@@ -87,7 +95,7 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
     strategy = module.build()
     cash = module.CASH
     risky = [t for t in strategy.universe.tickers if t != cash]
-    bundle = latest_complete(module.load() if bundle is None else bundle, risky)
+    bundle = latest_complete(fresh_bundle(module) if bundle is None else bundle, risky)
     window = bundle.tail(strategy.min_history + 1)
     prices = window.prices.iloc[-1]
 
@@ -136,8 +144,12 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
 
     module = get(args.strategy)
-    bundle = latest_complete(module.load(), [t for t in module.RISKY])
+    bundle = latest_complete(fresh_bundle(module), [t for t in module.RISKY])
     prices = bundle.prices.iloc[-1]
+    age = len(pd.bdate_range(bundle.index[-1], pd.Timestamp.today().normalize())) - 1
+    if age > STALE_DAYS:
+        print(f"WARNING: latest complete close is {bundle.index[-1].date()}, "
+              f"{age} business days ago")
     holdings = read_holdings(args.holdings, prices, args.nav)
     book, summary = run(args.strategy, holdings, args.nav, bundle, args.min_order)
 

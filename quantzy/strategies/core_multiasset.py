@@ -64,7 +64,7 @@ from __future__ import annotations
 import pandas as pd
 
 from quantzy.config import TRADING_DAYS
-from quantzy.data import CachedReader, DataBundle, YFinanceReader
+from quantzy.data import CachedReader, DataBundle, DataReader, YFinanceReader
 from quantzy.portfolio import PortfolioConfig
 from quantzy.signals import (
     CarrySharpePrior,
@@ -154,12 +154,16 @@ def etf_trading_days(raw: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
     return raw[raw[tickers].notna().any(axis=1)]
 
 
-def load(start: str = START) -> DataBundle:
+def load(start: str = START, reader: DataReader | None = None) -> DataBundle:
     """Prices for the 17 ETFs plus a T-bill sleeve compounded from the ^IRX yield; the VIX and
     SPY closes the variance risk premium reads (panels, the same in every column); and a
     ``carry`` panel, long Treasury yield minus the 3-month bill for IEF and TLT.
+
+    ``reader`` defaults to a cached Yahoo reader, which never refreshes a request without an
+    end date: right for research, wrong for a daily job, which passes a fresh reader.
     """
-    raw = CachedReader(YFinanceReader()).history(
+    reader = CachedReader(YFinanceReader()) if reader is None else reader
+    raw = reader.history(
         [*RISKY, "^IRX", "^VIX", "SPY", *CARRY_YIELDS.values()], start=start)
     raw = etf_trading_days(raw, RISKY)
     yld = raw["^IRX"].ffill() / 100.0
