@@ -50,6 +50,6 @@ candidates are pre-specified before they are run and judged with `PORTFOLIO` hel
 | `research_us_tilt` | How much of the Sharpe is a hindsight US tilt? | About 0.09 (world-cap anchor: 1.13 -> 1.04) | No change | f4208c4 |
 | `research_fixed_mix_breadth` | 56 ETFs with the class mix held fixed | +0.02 Sharpe, not significant | No | d7d3436 |
 | `research_shrinkage` | Correlation shrinkage (0.1, 0.25, Ledoit-Wolf, slow correlations) | Fixes conditioning, not performance | No | d7d3436 |
-| `research_corr_anchor` | Blend the risk model's correlations with a 3-5 year window | No Sharpe change; the risk model is well calibrated; today's concentration shrinks only partly | No; stress vol in the daily job instead | (this commit) |
-| `research_risk_budget` | Risk-budget books (equal class risk; class risk ~ view) against mean-variance | 0.82 / 0.90 against 1.13; far lower stress vol today (9.5-11.6% against 21%) | No | (this commit) |
+| `research_corr_anchor` | Blend the risk model's correlations with a 3-5 year window | No Sharpe change; the risk model is well calibrated; today's concentration shrinks only partly | No; stress vol in the daily job instead | 37e1017 |
+| `research_risk_budget` | Risk-budget books (equal class risk; class risk ~ view) against mean-variance | 0.82 / 0.90 against 1.13; far lower stress vol today (9.5-11.6% against 21%) | No | 37e1017 |
 | `research_trend_sleeve_broad` | Extras at a zero prior; a separate long-only trend sleeve | Extras barely enter; the sleeve is 0.6-0.7 correlated with the core and lowers Sharpe | No | 01e0c81 |
