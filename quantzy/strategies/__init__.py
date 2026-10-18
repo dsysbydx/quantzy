@@ -18,16 +18,26 @@ Lifecycle of an idea:
    the snapshot in its docstring. Retire an alpha the same way.
 
 ``REGISTRY`` maps a strategy's name to its module, for jobs that pick one by name.
+
+An *overlay* is a rule-based position added on top of a saved strategy (no optimizer), such
+as :mod:`treasury_month_end`. A strategy lists the overlays it runs with in ``OVERLAYS``;
+``OVERLAY_REGISTRY`` maps their names to modules, each defining ``ASSET``, ``SIZE``,
+``target_after_close(day)`` and ``excess_returns(asset_returns, cash_returns)``.
 """
 
 from __future__ import annotations
 
 from types import ModuleType
 
-from quantzy.strategies import core_multiasset
+from quantzy.strategies import core_multiasset, treasury_month_end
 
 REGISTRY: dict[str, ModuleType] = {
     core_multiasset.NAME: core_multiasset,
+}
+
+
+OVERLAY_REGISTRY: dict[str, ModuleType] = {
+    treasury_month_end.NAME: treasury_month_end,
 }
 
 
@@ -39,4 +49,10 @@ def get(name: str) -> ModuleType:
         raise KeyError(f"no saved strategy {name!r}; have {sorted(REGISTRY)}") from None
 
 
-__all__ = ["REGISTRY", "get", "core_multiasset"]
+def overlays(strategy: ModuleType) -> list[ModuleType]:
+    """The overlay modules a saved strategy runs with."""
+    return [OVERLAY_REGISTRY[n] for n in getattr(strategy, "OVERLAYS", ())]
+
+
+__all__ = ["REGISTRY", "OVERLAY_REGISTRY", "get", "overlays", "core_multiasset",
+           "treasury_month_end"]

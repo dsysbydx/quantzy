@@ -56,6 +56,8 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     VRP as well: Sharpe 1.06, drawdown -18.2% (Sep-Oct 2008), turnover 0.7x. The 64/256
     crossover needs history to 2008-09; the EMA-200-only book over the same dates had Sharpe
     1.07 and max drawdown -16.6%, and from 2008-05 Sharpe 0.99, drawdown -25.3%.
+    With the Treasury month-end overlay (``OVERLAYS``, 0.5x TLT over the last two trading days
+    of each month): Sharpe 1.21 (train 1.28 / test 1.18), max drawdown -17.0%.
     Sharpe is return over vol with no cash deduction.
 """
 
@@ -128,6 +130,9 @@ PORTFOLIO = PortfolioConfig(
     borrow_spread_bps=50.0,
     risk_halflives=(5, 20, 60),
 )
+
+#: Rule-based positions run on top of this book (``quantzy.strategies.OVERLAY_REGISTRY``).
+OVERLAYS = ("treasury_month_end",)
 
 ALPHAS: dict[str, tuple[Signal, float]] = {
     "prior": (CarrySharpePrior(PRIOR_SR, carry_vol=CARRY_VOL, carry_weight=0.5,

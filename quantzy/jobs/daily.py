@@ -43,7 +43,7 @@ import pandas as pd
 from quantzy.construction import Portfolio
 from quantzy.data import YFinanceReader
 from quantzy.data.bundle import DataBundle
-from quantzy.strategies import get
+from quantzy.strategies import get, overlays
 
 #: Orders smaller than this many dollars are dropped (a minimum commission would dominate).
 MIN_ORDER = 100.0
@@ -71,6 +71,13 @@ def ex_ante_vols(strategy, bundle: DataBundle, weights: pd.Series,
 def fresh_bundle(module) -> DataBundle:
     """The strategy's data straight from the source, bypassing the research cache."""
     return module.load(reader=YFinanceReader())
+
+
+def _next_trading_day(day: pd.Timestamp) -> pd.Timestamp:
+    from quantzy.strategies.treasury_month_end import trading_days
+
+    cal = trading_days(day, day + pd.Timedelta(days=10))
+    return cal[cal > day][0]
 
 
 def read_holdings(path: str | Path | None, prices: pd.Series, nav: float) -> pd.Series:
@@ -128,13 +135,30 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
         if unknown:
             raise ValueError(f"holdings include tickers outside the strategy: {unknown}")
         w.update(holdings.astype(float))
+    # Overlays: the job's orders execute at the next close, so an overlay holds from then on
+    # what its rule says for that close; what it holds now is what it said for this one.
+    # The core decides on the holdings without the overlays' part.
+    asof = window.index[-1]
+    execution_day = _next_trading_day(asof)
+    overlay_now = pd.Series(0.0, index=w.index)
+    overlay_next = pd.Series(0.0, index=w.index)
+    for ov in overlays(module):
+        overlay_now[ov.ASSET] += 0.0 if holdings is None or not len(holdings) \
+            else ov.target_after_close(asof)
+        overlay_next[ov.ASSET] += ov.target_after_close(execution_day)
+    w[cash] = 1.0 - w.drop(cash).sum()
+    w_total = w.copy()
+    w = (w - overlay_now).clip(lower=0.0)
     w[cash] = 1.0 - w.drop(cash).sum()
     funding = holdings is None or not len(holdings)
     current = None if funding else Portfolio(weights=w, nav=nav)
     decision = strategy.decide(window, current=current)
 
-    target = decision.target.weights.reindex(w.index).fillna(0.0)
-    model_vol, stress_vol = ex_ante_vols(strategy, bundle, target, risky)
+    core_target = decision.target.weights.reindex(w.index).fillna(0.0)
+    model_vol, stress_vol = ex_ante_vols(strategy, bundle, core_target, risky)
+    target = core_target + overlay_next
+    target[cash] = 1.0 - target.drop(cash).sum()
+    w = w_total
     out = pd.DataFrame({"price": prices.reindex(w.index), "current": w, "target": target})
     out["trade_weight"] = out["target"] - out["current"]
     out["trade_dollars"] = out["trade_weight"] * nav
@@ -148,6 +172,8 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
         "gross_target": float(target.drop(cash).sum()),
         "cash_target": float(target[cash]),
         "turnover": float(0.5 * (target - w).abs().sum()),
+        "execution_day": execution_day.date(),
+        "overlays": {ov.NAME: float(overlay_next[ov.ASSET]) for ov in overlays(module)},
         "estimated_cost": float(strategy.optimizer.execution_cost.estimate(
             (target - w).to_numpy(), tickers=list(w.index))
             if strategy.optimizer.execution_cost is not None
@@ -185,6 +211,8 @@ def main(argv: list[str] | None = None) -> None:
           f"turnover {summary['turnover']:.1%}, est. cost ${summary['estimated_cost']:,.0f} | "
           f"{summary['status']}" + (" | funding from cash (no band)" if summary["funding"]
                                      else ""))
+    for name, wt in summary["overlays"].items():
+        print(f"overlay {name}: {wt:.0%} of NAV from the close of {summary['execution_day']}")
     flag = ("  <-- leans on unusual correlations" if summary["stress_vol"]
             > STRESS_RATIO * summary["model_vol"] else "")
     print(f"ex-ante vol of the target: {summary['model_vol']:.1%} (risk model), "

@@ -23,6 +23,7 @@ from quantzy.config import TRADING_DAYS
 from quantzy.optimize import LinearCost
 from quantzy.signals.indicators import realized_vol
 from quantzy.strategies import core_multiasset as core
+from quantzy.strategies import overlays
 
 TEMPLATE = Path(__file__).with_name("core_multiasset.html")
 SPLIT = pd.Timestamp("2017-07-26")
@@ -70,10 +71,22 @@ def signal_heatmap(b, weights: pd.DataFrame, idx: pd.DatetimeIndex) -> dict:
     return {"dates": [d.strftime("%Y-%m-%d") for d in di], "assets": assets, "series": series}
 
 
+def with_overlays(r: pd.Series, b) -> pd.Series:
+    """The core's returns plus each overlay's excess return over cash, on the same dates."""
+    cash = b.prices[core.CASH].pct_change(fill_method=None)
+    out = r.copy()
+    for ov in overlays(core):
+        ex = ov.excess_returns(b.prices[ov.ASSET].pct_change(fill_method=None), cash)
+        out = out + ex.reindex(out.index).fillna(0.0)
+    return out
+
+
 def export(out: Path) -> dict[str, pd.Series]:
     b = core.load()
     with ProcessPoolExecutor(2) as pool:
-        (r1, w1, t1, c1), (r0, *_) = pool.map(run, ["strategy", "baseline"])
+        (r_core, w1, t1, c1), (r0, *_) = pool.map(run, ["strategy", "baseline"])
+    r1 = with_overlays(r_core, b)
+    print(f"core only: Sharpe {r_core.mean() / r_core.std() * np.sqrt(TRADING_DAYS):.2f}")
     equal = FixedWeights(core.UNIVERSE, holdings=core.RISKY,
                          cost_model=LinearCost(0.0, spread_bps=dict(core.EXECUTION_COST_BPS)))
     ew = WalkForwardBacktester(rebalance_every=21, warmup=core.warmup(b)).run(b, equal).returns

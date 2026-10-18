@@ -92,7 +92,7 @@ ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 75ch }
 <header>
   <div class="eyebrow">quantzy · strategies.core_multiasset · backtest tear-sheet</div>
   <h1>Multi-Asset Trend Book</h1>
-  <p class="lede">17 ETFs plus T-bills, rebalanced daily by mean-variance, with up to 1.3× gross exposure. Expected return is a class Sharpe prior (for Treasuries, half way to the yield curve's carry) plus a small slow-trend tilt (price against its 200-day EMA and the 64/256 EMA crossover) and, on the equity ETFs, the variance risk premium (VIX² minus SPY's realized variance). Daily returns are net of per-ETF trading cost (1 to 5 bp one way) and of borrowing at the T-bill rate plus 0.5%. Sharpe is return over vol, with no cash deduction.</p>
+  <p class="lede">17 ETFs plus T-bills, rebalanced daily by mean-variance, with up to 1.3× gross exposure. Expected return is a class Sharpe prior (for Treasuries, half way to the yield curve's carry) plus a small slow-trend tilt (price against its 200-day EMA and the 64/256 EMA crossover) and, on the equity ETFs, the variance risk premium (VIX² minus SPY's realized variance). On top runs a calendar overlay: 0.5× NAV in TLT over the last two trading days of each month, when bond index funds extend duration. Daily returns are net of per-ETF trading cost (1 to 5 bp one way) and of borrowing at the T-bill rate plus 0.5%. Sharpe is return over vol, with no cash deduction.</p>
   <div class="spec">mu_i    = vol_i × (SR_class + 0.05 × trend_ema200_i + 0.037 × ewmac64_256_i + 0.091 × vrp [equity ETFs])
 SR      = equity 0.30 · GLD 0.20 · DBC 0.15 · UUP 0 · IEF/TLT 0.5 × 0.25 + 0.5 × (long yield − 3m bill) / vol (7%, 14%)
 risk    = ewma_blend(5, 20, 60)                           sizing: risk aversion 1.5, no hard vol limit (~10% vol)
@@ -202,6 +202,7 @@ period  = <span id="period"></span>     train / test split <span id="splitd"></s
   <h2><span class="n">12</span>Caveats</h2>
   <ul>
     <li>The Treasury prior moves half way to the yield curve's carry (long yield minus the 3-month bill, over long-run vol). The term spread has forecast Treasury excess returns since 1962. In this backtest it mainly cut bonds during the 2022–24 inversion (from 18% to 8% of capital) and lifted test-window Sharpe from 1.07 to 1.14; before 2017 it changed little.</li>
+    <li>The Treasury month-end overlay is a separate rule-based position, nearly uncorrelated with the core (+0.05). It has persisted since 1977 (t 5.1 on a 30-year par bond) but has weakened by period, as published anomalies tend to: its Sharpe on excess return was 1.54 in 2002–08, 0.82 in 2008–17 and 0.43 in 2017–26. It is sized at 0.5×, half of what its recent Sharpe would justify, which keeps gross exposure under about 1.8× on those days. The charts of weights and positioning show the core only.</li>
     <li>The VRP alpha adds a market-wide equity view: overweight equities when implied variance is high relative to realized. It lifted Sharpe from 1.06 to 1.09 (before the Treasury carry change) and cut the worst drawdown from −18.2% to −16.0%, but about three quarters of its gain came in 2008 and 2021, and before 2008 its evidence on SPY is weak (t 1.1). It does not speed up re-entry after a V-shaped crash: at the March 2020 low it was at its most bearish.</li>
     <li>The trend budget is split between EMA-200 and the EWMAC 64/256 crossover. The crossover forecasts next-day returns better (IC +0.018 against +0.006) but adds no Sharpe in this book. The swap was made on the signal evidence and cut turnover by 14%. Slower trend exits later in a sudden crash: September to October 2008 lost about 3 points more than with EMA-200 alone.</li>
     <li>The slow crossover needs history until September 2008, so the backtest starts there and misses May to August 2008, when the EMA-200-only book lost 10.7%.</li>
@@ -224,7 +225,7 @@ const splitIdx = dates.findIndex(d => d >= D.split);
 const W = { a: 0, b: dates.length - 1 };
 const xf = dates.map(d => { const [y, m, dd] = d.split('-').map(Number); return y + (m - 1) / 12 + (dd - 1) / 365; });
 const SER = [
-  { k: 'strategy', name: 'Strategy (priors + trend + VRP)', c: '--s1', w: 2.2 },
+  { k: 'strategy', name: 'Strategy (core + month-end overlay)', c: '--s1', w: 2.2 },
   { k: 'baseline', name: 'Baseline (priors only)', c: '--s2', w: 1.5 },
   { k: 'equal', name: 'Equal weight 17', c: '--s3', w: 1.5 },
   { k: 'qqq', name: 'QQQ buy and hold', c: '--s4', w: 1.5 },
