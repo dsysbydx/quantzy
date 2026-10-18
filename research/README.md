@@ -56,4 +56,5 @@ candidates are pre-specified before they are run and judged with `PORTFOLIO` hel
 | `research_cross_asset_mom` | Bond momentum for equities, equity momentum for bonds | No IC since 1994 for equities; weak for bonds; no book gain | No | 4be863e |
 | `research_bitcoin` | IBIT (BTC-USD before 2024) at a zero prior, trend only | Sharpe 1.16 -> 1.24, but ~70% from 2017; test half +0.02 | No | 8d858ef |
 | `research_multi_horizon` | 1/3/6/12-month TSMOM, per class | Slow trend is already best; 1-month is reversal on sectors; no book gain | No | 8d858ef |
+| `research_short_reversal` | Short-term reversal: sector and country cross-section (5/21 days), time series, pullbacks | Weekly reversal faded since 2017; equity 5-day time-series reversal and country 21-day cross-sectional reversal survive | To `research_reversal_sleeves` | (this commit) |
 | `research_trend_sleeve_broad` | Extras at a zero prior; a separate long-only trend sleeve | Extras barely enter; the sleeve is 0.6-0.7 correlated with the core and lowers Sharpe | No | 01e0c81 |
