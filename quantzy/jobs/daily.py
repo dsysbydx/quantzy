@@ -15,6 +15,12 @@ Holdings file (CSV), one row per position, either
 The strategy's cash sleeve (``TBILL`` for ``core_multiasset``) is never ordered: it is the
 account's cash, or a T-bill fund if you hold one.
 
+**Stress vol.** Next to the risk model's ex-ante vol of the target, the job reports the vol
+of the same book under the long-run correlations of its history (current vols, correlations
+over all available data). A big gap means the book leans on unusually low or negative recent
+correlations; on 2026-10-16 the saved book was 8.8% under the model and 21% under 2008-2025
+correlations. It changes no trade; it is there to look at.
+
 **Funding a new account.** With no holdings the job builds the target the way a backtest
 starts, without the optimizer's no-trade band: from all cash, the band (a 5 bp x 48 penalty
 on both the asset and the cash leg) is larger than most assets' expected return, so a banded
@@ -43,6 +49,23 @@ from quantzy.strategies import get
 MIN_ORDER = 100.0
 #: Warn when the latest complete close is older than this many business days.
 STALE_DAYS = 3
+#: Flag the book when its stress vol exceeds the model's ex-ante vol by this factor.
+STRESS_RATIO = 1.5
+
+
+def ex_ante_vols(strategy, bundle: DataBundle, weights: pd.Series,
+                 risky: list[str]) -> tuple[float, float]:
+    """The target's vol under the risk model, and under long-run correlations with the same
+    vols (pairwise over all of ``bundle``, at least 252 overlapping days a pair)."""
+    cov = strategy.risk_model.covariance(bundle).loc[risky, risky]
+    w = weights.reindex(risky).fillna(0.0).to_numpy()
+    vol = np.sqrt(np.clip(np.diag(cov.to_numpy()), 0, None))
+    model = float(np.sqrt(w @ cov.to_numpy() @ w))
+    rho = bundle.prices[risky].pct_change(fill_method=None).iloc[:-1].corr(min_periods=252)
+    rho = rho.fillna(cov / np.outer(vol, vol)).to_numpy().copy()  # pairs without history: model
+    np.fill_diagonal(rho, 1.0)
+    stress = float(np.sqrt(w @ (rho * np.outer(vol, vol)) @ w))
+    return model, stress
 
 
 def fresh_bundle(module) -> DataBundle:
@@ -111,6 +134,7 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
     decision = strategy.decide(window, current=current)
 
     target = decision.target.weights.reindex(w.index).fillna(0.0)
+    model_vol, stress_vol = ex_ante_vols(strategy, bundle, target, risky)
     out = pd.DataFrame({"price": prices.reindex(w.index), "current": w, "target": target})
     out["trade_weight"] = out["target"] - out["current"]
     out["trade_dollars"] = out["trade_weight"] * nav
@@ -130,6 +154,8 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
             else (decision.trades.cost or 0.0)) * nav,
         "status": decision.status,
         "funding": funding,
+        "model_vol": model_vol,
+        "stress_vol": stress_vol,
     }
     return out.assign(order=out.index.isin(orders.index)), summary
 
@@ -159,6 +185,10 @@ def main(argv: list[str] | None = None) -> None:
           f"turnover {summary['turnover']:.1%}, est. cost ${summary['estimated_cost']:,.0f} | "
           f"{summary['status']}" + (" | funding from cash (no band)" if summary["funding"]
                                      else ""))
+    flag = ("  <-- leans on unusual correlations" if summary["stress_vol"]
+            > STRESS_RATIO * summary["model_vol"] else "")
+    print(f"ex-ante vol of the target: {summary['model_vol']:.1%} (risk model), "
+          f"{summary['stress_vol']:.1%} (long-run correlations){flag}")
     view = book[["price", "current", "target", "trade_dollars", "trade_shares"]]
     print(view.to_string(formatters={
         "price": "{:,.2f}".format, "current": "{:.1%}".format, "target": "{:.1%}".format,

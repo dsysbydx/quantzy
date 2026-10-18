@@ -26,6 +26,11 @@ def test_from_cash_buys_to_target(bundle):
     assert risky["target"].sum() <= core.PORTFOLIO.max_leverage + 1e-6
 
 
+def test_reports_model_and_stress_vol(bundle):
+    _, summary = run("core_multiasset", None, 3_000_000.0, bundle)
+    assert 0 < summary["model_vol"] < 1 and 0 < summary["stress_vol"] < 1
+
+
 def test_holding_the_target_trades_little(bundle):
     first, _ = run("core_multiasset", None, 3_000_000.0, bundle)
     held = first["target"].drop(core.CASH)
