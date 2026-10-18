@@ -30,7 +30,8 @@ SPLIT = pd.Timestamp("2017-07-26")
 HEAT_STEP = 5  # sample the signal heatmap weekly
 LABELS = {"trend": ("EMA-200 trend", "tanh score, -1..1"),
           "ewmac": ("EWMAC 64/256", "forecast / 10, capped +/-2"),
-          "vrp": ("Variance risk premium", "z-score, capped +/-2")}
+          "vrp": ("Variance risk premium", "z-score, capped +/-2"),
+          "dollar_value": ("Dollar value (DXY vs 5-year mean)", "z-score, capped +/-2")}
 
 
 def run(which: str):

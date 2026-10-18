@@ -93,7 +93,7 @@ ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 75ch }
   <div class="eyebrow">quantzy · strategies.core_multiasset · backtest tear-sheet</div>
   <h1>Multi-Asset Trend Book</h1>
   <p class="lede">17 ETFs plus T-bills, rebalanced daily by mean-variance, with up to 1.3× gross exposure. Expected return is a class Sharpe prior (for Treasuries, half way to the yield curve's carry) plus a small slow-trend tilt (price against its 200-day EMA and the 64/256 EMA crossover) and, on the equity ETFs, the variance risk premium (VIX² minus SPY's realized variance). On top runs a calendar overlay: 0.5× NAV in TLT over the last two trading days of each month, when bond index funds extend duration. Daily returns are net of per-ETF trading cost (1 to 5 bp one way) and of borrowing at the T-bill rate plus 0.5%. Sharpe is return over vol, with no cash deduction.</p>
-  <div class="spec">mu_i    = vol_i × (SR_class + 0.05 × trend_ema200_i + 0.037 × ewmac64_256_i + 0.091 × vrp [equity ETFs])
+  <div class="spec">mu_i    = vol_i × (SR_class + 0.05 × trend_ema200_i + 0.037 × ewmac64_256_i + 0.091 × vrp [equity ETFs] + 0.10 × dollar value [UUP])
 SR      = equity 0.30 · GLD 0.20 · DBC 0.15 · UUP 0 · IEF/TLT 0.5 × 0.25 + 0.5 × (long yield − 3m bill) / vol (7%, 14%)
 risk    = ewma_blend(5, 20, 60)                           sizing: risk aversion 1.5, no hard vol limit (~10% vol)
 limits  = long only · max 1.3× gross, borrowed vs T-bills · 20% per ETF as a share of the invested book
@@ -202,6 +202,7 @@ period  = <span id="period"></span>     train / test split <span id="splitd"></s
   <h2><span class="n">12</span>Caveats</h2>
   <ul>
     <li>The Treasury prior moves half way to the yield curve's carry (long yield minus the 3-month bill, over long-run vol). The term spread has forecast Treasury excess returns since 1962. In this backtest it mainly cut bonds during the 2022–24 inversion (from 18% to 8% of capital) and lifted test-window Sharpe from 1.07 to 1.14; before 2017 it changed little.</li>
+    <li>The dollar value tilt leans toward UUP when DXY is below its 5-year average and away when it is above, because currencies drift back toward purchasing-power parity over years. It was the one value measure that worked here (252-day IC +0.43); equity value (CAPE, regional and sector reversal) lowered Sharpe at the book's horizon and is not used. UUP is a small part of the book, so it adds about 0.02 Sharpe.</li>
     <li>The Treasury month-end overlay is a separate rule-based position, nearly uncorrelated with the core (+0.05). It has persisted since 1977 (t 5.1 on a 30-year par bond) but has weakened by period, as published anomalies tend to: its Sharpe on excess return was 1.54 in 2002–08, 0.82 in 2008–17 and 0.43 in 2017–26. It is sized at 0.5×, half of what its recent Sharpe would justify, which keeps gross exposure under about 1.8× on those days. The charts of weights and positioning show the core only.</li>
     <li>The VRP alpha adds a market-wide equity view: overweight equities when implied variance is high relative to realized. It lifted Sharpe from 1.06 to 1.09 (before the Treasury carry change) and cut the worst drawdown from −18.2% to −16.0%, but about three quarters of its gain came in 2008 and 2021, and before 2008 its evidence on SPY is weak (t 1.1). It does not speed up re-entry after a V-shaped crash: at the March 2020 low it was at its most bearish.</li>
     <li>The trend budget is split between EMA-200 and the EWMAC 64/256 crossover. The crossover forecasts next-day returns better (IC +0.018 against +0.006) but adds no Sharpe in this book. The swap was made on the signal evidence and cut turnover by 14%. Slower trend exits later in a sudden crash: September to October 2008 lost about 3 points more than with EMA-200 alone.</li>
@@ -566,7 +567,7 @@ function render() {
 // ---- signal heatmap ----
 const SG = D.sig;
 const SGX = SG.dates.map(d => { const [y, m, dd] = d.split('-').map(Number); return y + (m - 1) / 12 + (dd - 1) / 365; });
-const SIG_KEYS = ['total', 'prior', 'trend', 'ewmac', 'vrp', 'weight'].filter(k => SG.series[k]);
+const SIG_KEYS = ['total', 'prior', 'trend', 'ewmac', 'vrp', 'dollar_value', 'weight'].filter(k => SG.series[k]);
 let sigKey = 'total', sigMode = 'score';
 function sigScale(key, mode) {
   if (key === 'weight') return { lo: 0, hi: 0.3, seq: true };
@@ -630,6 +631,7 @@ function renderSigHeat() {
     prior: 'The Sharpe prior. Constant by asset class, except IEF and TLT: half the 0.25 judgment prior, half the long yield minus the 3-month bill over long-run vol, so it falls when the curve flattens or inverts.',
     trend: 'Price against its 200-day EMA in units of monthly vol, squashed by tanh. Weight 0.05.',
     ewmac: 'EMA(64) minus EMA(256) in daily price vols, times Carver’s scalar, divided by 10 and capped at ±2. Weight 0.037.',
+    dollar_value: 'Minus log(DXY / its 5-year mean), z-scored against its trailing 10 years: a purchasing-power proxy. Positive means the dollar is cheap. UUP only. Weight 0.10.',
     vrp: 'One market-wide z-score (VIX² minus SPY realized variance) applied to the 12 equity ETFs only, so those rows are identical; other assets have no view. Weight 0.091.',
     weight: 'The resulting position, as a share of capital, sampled weekly.',
   };

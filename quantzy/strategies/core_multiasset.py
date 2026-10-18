@@ -37,6 +37,9 @@ Evidence (``research/research_trend_*.py``)
       cash too, is a smoothing band, not a cost estimate. Trading closer to the daily target
       lowered Sharpe at every looser setting (frictionless: 0.96 at 24x turnover). Costs
       charged to returns use per-ETF estimates instead.
+    * Dollar value (``research_value.py``): minus log(DXY / its 5-year mean), z-scored; a
+      purchasing-power proxy, 252-day IC +0.43 (t 2.9), +0.02 Sharpe. Equity value (CAPE
+      ERP, regional and sector reversal) lowered Sharpe at these horizons.
     * Rejected: long-run vol in the risk model, VIX level, relative sector momentum (IC
       t 4.8 but no gain in a long-only book), an expanding-history Sharpe prior (wrong sign).
     * Shorting the trend did not pay on ETFs (short leg Sharpe -0.15), so long-only.
@@ -56,13 +59,16 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     VRP as well: Sharpe 1.06, drawdown -18.2% (Sep-Oct 2008), turnover 0.7x. The 64/256
     crossover needs history to 2008-09; the EMA-200-only book over the same dates had Sharpe
     1.07 and max drawdown -16.6%, and from 2008-05 Sharpe 0.99, drawdown -25.3%.
-    With the Treasury month-end overlay (``OVERLAYS``, 0.5x TLT over the last two trading days
-    of each month): Sharpe 1.21 (train 1.28 / test 1.18), max drawdown -17.0%.
+    With the dollar value tilt (``dollar_value``): Sharpe 1.15 (train 1.17 / test 1.14), max
+    drawdown -16.1%. With the Treasury month-end overlay as well (``OVERLAYS``, 0.5x TLT over
+    the last two trading days of each month): Sharpe 1.23 (train 1.31 / test 1.18), max
+    drawdown -17.2%. These two were added after the snapshot above.
     Sharpe is return over vol with no cash deduction.
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from quantzy.config import TRADING_DAYS
@@ -72,6 +78,7 @@ from quantzy.signals import (
     CarrySharpePrior,
     EwmacTrend,
     Identity,
+    PanelScore,
     VarianceRiskPremium,
     VolScaledTrend,
 )
@@ -131,6 +138,11 @@ PORTFOLIO = PortfolioConfig(
     risk_halflives=(5, 20, 60),
 )
 
+#: The dollar's value score: minus log(DXY / its 5-year mean), z-scored against its trailing
+#: 10 years, capped at +/-2 (``research/research_value.py``). A purchasing-power proxy.
+DOLLAR_INDEX = "DX-Y.NYB"
+VALUE_WINDOW, VALUE_Z_WINDOW = 1260, 2520
+
 #: Rule-based positions run on top of this book (``quantzy.strategies.OVERLAY_REGISTRY``).
 OVERLAYS = ("treasury_month_end",)
 
@@ -146,6 +158,9 @@ ALPHAS: dict[str, tuple[Signal, float]] = {
     # The variance risk premium on the equity ETFs; its weight gives the score the same
     # train-window dispersion as the whole trend budget (``research_vrp.py``).
     "vrp": (VarianceRiskPremium(tuple(EQUITY), normalizer=Identity()), 0.091),
+    # The dollar's value: 0.10 of Sharpe per z. Currencies drift back toward purchasing-power
+    # parity over years (half-life ~3-5); its 252-day IC was +0.43 (t 2.9).
+    "dollar_value": (PanelScore("dollar_value", normalizer=Identity()), 0.10),
 }
 
 
@@ -162,14 +177,15 @@ def etf_trading_days(raw: pd.DataFrame, tickers: list[str]) -> pd.DataFrame:
 def load(start: str = START, reader: DataReader | None = None) -> DataBundle:
     """Prices for the 17 ETFs plus a T-bill sleeve compounded from the ^IRX yield; the VIX and
     SPY closes the variance risk premium reads (panels, the same in every column); and a
-    ``carry`` panel, long Treasury yield minus the 3-month bill for IEF and TLT.
+    ``carry`` panel, long Treasury yield minus the 3-month bill for IEF and TLT; and a
+    ``dollar_value`` panel for UUP.
 
     ``reader`` defaults to a cached Yahoo reader, which never refreshes a request without an
     end date: right for research, wrong for a daily job, which passes a fresh reader.
     """
     reader = CachedReader(YFinanceReader()) if reader is None else reader
     raw = reader.history(
-        [*RISKY, "^IRX", "^VIX", "SPY", *CARRY_YIELDS.values()], start=start)
+        [*RISKY, "^IRX", "^VIX", "SPY", *CARRY_YIELDS.values(), DOLLAR_INDEX], start=start)
     raw = etf_trading_days(raw, RISKY)
     yld = raw["^IRX"].ffill() / 100.0
     cash_ret = ((1.0 + yld) ** (1.0 / TRADING_DAYS) - 1.0).shift(1).fillna(0.0)
@@ -182,8 +198,18 @@ def load(start: str = START, reader: DataReader | None = None) -> DataBundle:
     carry = pd.DataFrame(index=prices.index, columns=prices.columns, dtype=float)
     for t, y in CARRY_YIELDS.items():
         carry[t] = (raw[y].ffill() - raw["^IRX"].ffill()) / 100.0
+    dollar_value = pd.DataFrame(index=prices.index, columns=prices.columns, dtype=float)
+    dollar_value["UUP"] = dollar_value_score(raw[DOLLAR_INDEX])
     return DataBundle.build(prices, vix=broadcast(raw["^VIX"]), market=broadcast(raw["SPY"]),
-                            carry=carry)
+                            carry=carry, dollar_value=dollar_value)
+
+
+def dollar_value_score(dxy: pd.Series) -> pd.Series:
+    """Minus log(DXY / its 5-year mean), z-scored against the trailing 10 years, capped."""
+    dxy = dxy.ffill()
+    x = -np.log(dxy / dxy.rolling(VALUE_WINDOW, min_periods=VALUE_WINDOW).mean())
+    r = x.rolling(VALUE_Z_WINDOW, min_periods=VALUE_WINDOW)
+    return ((x - r.mean()) / r.std()).clip(-2.0, 2.0)
 
 
 def build(alphas: dict[str, tuple[Signal, float]] | None = None,

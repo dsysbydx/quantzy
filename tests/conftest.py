@@ -129,4 +129,8 @@ def core_bundle():
     carry = pd.DataFrame(np.nan, index=dates, columns=px.columns)
     carry["IEF"], carry["TLT"] = 0.01, 0.015
 
-    return DataBundle.build(px, vix=wide(vix), market=wide(spy), carry=carry)
+    dollar_value = pd.DataFrame(np.nan, index=dates, columns=px.columns)
+    dollar_value["UUP"] = np.sin(np.arange(len(dates)) / 200.0)
+
+    return DataBundle.build(px, vix=wide(vix), market=wide(spy), carry=carry,
+                            dollar_value=dollar_value)
