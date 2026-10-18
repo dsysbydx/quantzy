@@ -17,6 +17,7 @@ from quantzy.signals.normalize import (
     TimeSeriesZ,
     ZScore,
 )
+from quantzy.signals.panel import PanelScore
 from quantzy.signals.prior import CarrySharpePrior, SharpePrior
 from quantzy.signals.pullback import TrendPullback
 from quantzy.signals.trend import EwmacTrend, TrendStrength, VolScaledTrend
@@ -35,6 +36,7 @@ __all__ = [
     "SharpePrior",
     "CarrySharpePrior",
     "VarianceRiskPremium",
+    "PanelScore",
     "ema",
     "sma",
     "realized_vol",

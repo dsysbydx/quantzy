@@ -21,6 +21,7 @@ from quantzy.signals import (
     EwmacTrend,
     Identity,
     Momentum,
+    PanelScore,
     SharpePrior,
     Signal,
     TrendPullback,
@@ -410,3 +411,14 @@ class TestCarrySharpePrior:
             CarrySharpePrior(carry_weight=1.5)
         with pytest.raises(ValueError, match="carry_vol"):
             CarrySharpePrior(carry_vol={"A": 0.0})
+
+
+class TestPanelScore:
+    def test_panel_times_vol_and_no_view_elsewhere(self, panel):
+        score = pd.DataFrame(np.nan, index=panel.index, columns=panel.columns)
+        score["MID"] = 1.5
+        b = DataBundle.build(panel, s=score)
+        raw = PanelScore("s", vol_window=20, normalizer=Identity()).raw(b)
+        vol = panel["MID"].pct_change().iloc[-20:].std() * np.sqrt(252)
+        assert raw["MID"].iloc[-1] == pytest.approx(1.5 * vol)
+        assert raw["UP"].isna().all()
