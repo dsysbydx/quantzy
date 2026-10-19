@@ -65,4 +65,5 @@ candidates are pre-specified before they are run and judged with `PORTFOLIO` hel
 | `research_bounce_filtered` | Equity bounce-back overlay with VRP, VIX and trend crash filters | Trend filter removes crash losses (overlay Sharpe 0.60) but adds +0.01 to the book, none in the test half | No | ddd9284 |
 | `research_spread_trades` | Treasury curve slopes (5s10s, 10s30s) and tied ETF pairs, z-score reversion | No faster than a random walk; curve reversion ended around 1990; some pairs trend | No | 1eae436 |
 | `research_rsi` | RSI(2) and RSI(14) dip-buying on SPY with a trend filter | RSI(2) works alone (Sharpe ~0.5) but matches the 5-day z and adds nothing to the book; RSI(14) rarely triggers | No | e0d033e |
+| `research_credit_breadth` | Fear & Greed parts: 21d credit momentum, 252d credit contrarian, sector breadth vs SPY | None pass; breadth is trend; the 252d credit signal works with the reverse sign (t -3.4, VWEHX 1993 on) | No |  |
 | `research_trend_sleeve_broad` | Extras at a zero prior; a separate long-only trend sleeve | Extras barely enter; the sleeve is 0.6-0.7 correlated with the core and lowers Sharpe | No | 01e0c81 |
