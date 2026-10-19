@@ -63,5 +63,5 @@ candidates are pre-specified before they are run and judged with `PORTFOLIO` hel
 | `research_implied_erp` | Damodaran's implied ERP as a US equity value tilt | Forecasts a year ahead since 1961 (rank corr +0.28), but lowers the book's Sharpe (1.05-1.06) | No | c5c0205 |
 | `research_ma_band_reversion` | Trade re-entry from +/-2 bands of a normalized EMA(x) - EMA(200) spread | The OU look is mechanical (a random walk shows it); no edge; long/short loses | No | 46f8220 |
 | `research_bounce_filtered` | Equity bounce-back overlay with VRP, VIX and trend crash filters | Trend filter removes crash losses (overlay Sharpe 0.60) but adds +0.01 to the book, none in the test half | No | ddd9284 |
-| `research_spread_trades` | Treasury curve slopes (5s10s, 10s30s) and tied ETF pairs, z-score reversion | No faster than a random walk; curve reversion ended around 1990; some pairs trend | No | (this commit) |
+| `research_spread_trades` | Treasury curve slopes (5s10s, 10s30s) and tied ETF pairs, z-score reversion | No faster than a random walk; curve reversion ended around 1990; some pairs trend | No | 1eae436 |
 | `research_trend_sleeve_broad` | Extras at a zero prior; a separate long-only trend sleeve | Extras barely enter; the sleeve is 0.6-0.7 correlated with the core and lowers Sharpe | No | 01e0c81 |
