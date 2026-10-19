@@ -61,5 +61,5 @@ candidates are pre-specified before they are run and judged with `PORTFOLIO` hel
 | `research_commodities` | 13 commodity ETFs at a zero prior; trend and continuation around EIA, FOMC and payroll days | Nothing enters or helps; event days are bigger but not more predictable | No | e68e1ec |
 | `research_value` | Value tilts per class: CAPE-based ERP, sector and regional reversal, real yield, real gold, DBC and dollar reversal | Equity value hurts (0.80 all-in); dollar 5-year reversal is the one clear signal (252d IC +0.43) | Dollar value tilt at 0.10 | 9a35c5d |
 | `research_implied_erp` | Damodaran's implied ERP as a US equity value tilt | Forecasts a year ahead since 1961 (rank corr +0.28), but lowers the book's Sharpe (1.05-1.06) | No | c5c0205 |
-| `research_ma_band_reversion` | Trade re-entry from +/-2 bands of a normalized EMA(x) - EMA(200) spread | The OU look is mechanical (a random walk shows it); no edge; long/short loses | No | (this commit) |
+| `research_ma_band_reversion` | Trade re-entry from +/-2 bands of a normalized EMA(x) - EMA(200) spread | The OU look is mechanical (a random walk shows it); no edge; long/short loses | No | 46f8220 |
 | `research_trend_sleeve_broad` | Extras at a zero prior; a separate long-only trend sleeve | Extras barely enter; the sleeve is 0.6-0.7 correlated with the core and lowers Sharpe | No | 01e0c81 |
