@@ -18,6 +18,9 @@ Conventions they share: Sharpe is return over vol with no cash deduction; IC is 
 next-day returns over trailing vol with 47-day interleaved folds and Newey-West t-stats;
 candidates are pre-specified before they are run and judged with `PORTFOLIO` held fixed.
 
+Ideas not yet tested, open portfolio questions and lessons so far are in
+[IDEAS.md](IDEAS.md).
+
 ## Index
 
 | Study | Question | Result | Adopted | Commit |
