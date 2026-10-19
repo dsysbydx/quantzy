@@ -74,11 +74,9 @@ def signal_heatmap(b, weights: pd.DataFrame, idx: pd.DatetimeIndex) -> dict:
 
 def with_overlays(r: pd.Series, b) -> pd.Series:
     """The core's returns plus each overlay's excess return over cash, on the same dates."""
-    cash = b.prices[core.CASH].pct_change(fill_method=None)
     out = r.copy()
     for ov in overlays(core):
-        ex = ov.excess_returns(b.prices[ov.ASSET].pct_change(fill_method=None), cash)
-        out = out + ex.reindex(out.index).fillna(0.0)
+        out = out + ov.backtest_returns(b).reindex(out.index).fillna(0.0)
     return out
 
 

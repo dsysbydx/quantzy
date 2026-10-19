@@ -132,5 +132,6 @@ def core_bundle():
     dollar_value = pd.DataFrame(np.nan, index=dates, columns=px.columns)
     dollar_value["UUP"] = np.sin(np.arange(len(dates)) / 200.0)
 
+    vixy = 20 * np.cumprod(1 + rng.normal(-0.002, 0.04, len(dates)))
     return DataBundle.build(px, vix=wide(vix), market=wide(spy), carry=carry,
-                            dollar_value=dollar_value)
+                            dollar_value=dollar_value, vixy=wide(vixy))

@@ -62,7 +62,12 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     With the dollar value tilt (``dollar_value``): Sharpe 1.15 (train 1.17 / test 1.14), max
     drawdown -16.1%. With the Treasury month-end overlay as well (``OVERLAYS``, 0.5x TLT over
     the last two trading days of each month): Sharpe 1.23 (train 1.31 / test 1.18), max
-    drawdown -17.2%. These two were added after the snapshot above.
+    drawdown -17.2%. With the VIX hedge overlay too (``vix_hedge``, 0.05x VIXY while the VIX
+    regime is calm, from 2011): Sharpe 1.27 (train 1.25 / test 1.29), CAGR 14.3% against
+    14.6%, vol 11.0% against 11.6%, max drawdown -17.2% (Sep 2022, unchanged), Calmar 0.83
+    against 0.85; 2020 -5.7% against -8.4%. Adopted as insurance, not as an alpha: it missed
+    the research bar (``research_vixy_hedge.py``). These three were added after the
+    snapshot above.
     Sharpe is return over vol with no cash deduction.
 """
 
@@ -144,7 +149,9 @@ DOLLAR_INDEX = "DX-Y.NYB"
 VALUE_WINDOW, VALUE_Z_WINDOW = 1260, 2520
 
 #: Rule-based positions run on top of this book (``quantzy.strategies.OVERLAY_REGISTRY``).
-OVERLAYS = ("treasury_month_end",)
+OVERLAYS = ("treasury_month_end", "vix_hedge")
+#: The VIX hedge overlay's asset, loaded as a panel (it is not in the optimizer's universe).
+HEDGE = "VIXY"
 
 ALPHAS: dict[str, tuple[Signal, float]] = {
     "prior": (CarrySharpePrior(PRIOR_SR, carry_vol=CARRY_VOL, carry_weight=0.5,
@@ -185,7 +192,8 @@ def load(start: str = START, reader: DataReader | None = None) -> DataBundle:
     """
     reader = CachedReader(YFinanceReader()) if reader is None else reader
     raw = reader.history(
-        [*RISKY, "^IRX", "^VIX", "SPY", *CARRY_YIELDS.values(), DOLLAR_INDEX], start=start)
+        [*RISKY, "^IRX", "^VIX", "SPY", *CARRY_YIELDS.values(), DOLLAR_INDEX, HEDGE],
+        start=start)
     raw = etf_trading_days(raw, RISKY)
     yld = raw["^IRX"].ffill() / 100.0
     cash_ret = ((1.0 + yld) ** (1.0 / TRADING_DAYS) - 1.0).shift(1).fillna(0.0)
@@ -201,7 +209,7 @@ def load(start: str = START, reader: DataReader | None = None) -> DataBundle:
     dollar_value = pd.DataFrame(index=prices.index, columns=prices.columns, dtype=float)
     dollar_value["UUP"] = dollar_value_score(raw[DOLLAR_INDEX])
     return DataBundle.build(prices, vix=broadcast(raw["^VIX"]), market=broadcast(raw["SPY"]),
-                            carry=carry, dollar_value=dollar_value)
+                            carry=carry, dollar_value=dollar_value, vixy=broadcast(raw[HEDGE]))
 
 
 def dollar_value_score(dxy: pd.Series) -> pd.Series:

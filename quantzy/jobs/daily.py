@@ -97,6 +97,15 @@ def read_holdings(path: str | Path | None, prices: pd.Series, nav: float) -> pd.
     raise ValueError("holdings file needs a 'weight' or a 'shares' column")
 
 
+def all_prices(module, bundle: DataBundle) -> pd.Series:
+    """The latest close of everything the job may order: the universe and overlay assets."""
+    prices = bundle.prices.iloc[-1].copy()
+    for ov in overlays(module):
+        if ov.ASSET not in prices.index:
+            prices[ov.ASSET] = ov.asset_prices(bundle).ffill().iloc[-1]
+    return prices
+
+
 def latest_complete(bundle: DataBundle, tickers: list[str]) -> DataBundle:
     """Drop trailing rows where any traded ETF has no close (a holiday, or today's open)."""
     ok = bundle.prices[tickers].notna().all(axis=1)
@@ -127,38 +136,45 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
     risky = [t for t in strategy.universe.tickers if t != cash]
     bundle = latest_complete(fresh_bundle(module) if bundle is None else bundle, risky)
     window = bundle.tail(strategy.min_history + 1)
-    prices = window.prices.iloc[-1]
 
-    w = pd.Series(0.0, index=strategy.universe.tickers)
+    ovs = overlays(module)
+    universe = list(strategy.universe.tickers)
+    extra = [ov.ASSET for ov in ovs if ov.ASSET not in universe]  # traded only by overlays
+    w = pd.Series(0.0, index=universe + extra)
     if holdings is not None and len(holdings):
         unknown = [t for t in holdings.index if t not in w.index]
         if unknown:
             raise ValueError(f"holdings include tickers outside the strategy: {unknown}")
         w.update(holdings.astype(float))
     # Overlays: the job's orders execute at the next close, so an overlay holds from then on
-    # what its rule says for that close; what it holds now is what it said for this one.
-    # The core decides on the holdings without the overlays' part.
+    # what its rule says for that close; what it holds now is what it said for this one (or,
+    # for an asset only an overlay trades, the whole holding). The core decides on the
+    # holdings without the overlays' part.
     asof = window.index[-1]
     execution_day = _next_trading_day(asof)
+    funding = holdings is None or not len(holdings)
     overlay_now = pd.Series(0.0, index=w.index)
     overlay_next = pd.Series(0.0, index=w.index)
-    for ov in overlays(module):
-        overlay_now[ov.ASSET] += 0.0 if holdings is None or not len(holdings) \
-            else ov.target_after_close(asof)
-        overlay_next[ov.ASSET] += ov.target_after_close(execution_day)
+    for ov in ovs:
+        if ov.ASSET in extra:
+            now = float(w[ov.ASSET])
+        else:
+            now = 0.0 if funding else ov.target_after_close(asof, bundle)
+        overlay_now[ov.ASSET] += now
+        overlay_next[ov.ASSET] += ov.target_after_close(execution_day, bundle, now)
     w[cash] = 1.0 - w.drop(cash).sum()
     w_total = w.copy()
-    w = (w - overlay_now).clip(lower=0.0)
+    w = (w - overlay_now).clip(lower=0.0).loc[universe]
     w[cash] = 1.0 - w.drop(cash).sum()
-    funding = holdings is None or not len(holdings)
     current = None if funding else Portfolio(weights=w, nav=nav)
     decision = strategy.decide(window, current=current)
 
-    core_target = decision.target.weights.reindex(w.index).fillna(0.0)
+    core_target = decision.target.weights.reindex(w_total.index).fillna(0.0)
     model_vol, stress_vol = ex_ante_vols(strategy, bundle, core_target, risky)
     target = core_target + overlay_next
     target[cash] = 1.0 - target.drop(cash).sum()
     w = w_total
+    prices = all_prices(module, window)
     out = pd.DataFrame({"price": prices.reindex(w.index), "current": w, "target": target})
     out["trade_weight"] = out["target"] - out["current"]
     out["trade_dollars"] = out["trade_weight"] * nav
@@ -173,7 +189,7 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
         "cash_target": float(target[cash]),
         "turnover": float(0.5 * (target - w).abs().sum()),
         "execution_day": execution_day.date(),
-        "overlays": {ov.NAME: float(overlay_next[ov.ASSET]) for ov in overlays(module)},
+        "overlays": {ov.NAME: float(overlay_next[ov.ASSET]) for ov in ovs},
         "estimated_cost": float(strategy.optimizer.execution_cost.estimate(
             (target - w).to_numpy(), tickers=list(w.index))
             if strategy.optimizer.execution_cost is not None
@@ -197,7 +213,7 @@ def main(argv: list[str] | None = None) -> None:
 
     module = get(args.strategy)
     bundle = latest_complete(fresh_bundle(module), [t for t in module.RISKY])
-    prices = bundle.prices.iloc[-1]
+    prices = all_prices(module, bundle)
     age = len(pd.bdate_range(bundle.index[-1], pd.Timestamp.today().normalize())) - 1
     if age > STALE_DAYS:
         print(f"WARNING: latest complete close is {bundle.index[-1].date()}, "

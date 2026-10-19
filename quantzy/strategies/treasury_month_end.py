@@ -77,14 +77,25 @@ def in_window(days: pd.DatetimeIndex) -> pd.Series:
     return from_end < DAYS
 
 
-def target_after_close(day) -> float:
+def target_after_close(day, bundle=None, current: float = 0.0) -> float:
     """The weight in ``ASSET`` to hold from ``day``'s close: ``SIZE`` when the next trading
-    day is in the window (its return is the one earned), else 0."""
+    day is in the window (its return is the one earned), else 0. A calendar rule: the data
+    and the current holding are not used."""
     day = pd.Timestamp(day).normalize()
     cal = trading_days(day - pd.Timedelta(days=7), day + pd.offsets.MonthEnd(2))
     nxt = cal[cal > day][0]
     flags = in_window(cal)
     return SIZE if bool(flags[nxt]) else 0.0
+
+
+def asset_prices(bundle) -> pd.Series:
+    return bundle.prices[ASSET]
+
+
+def backtest_returns(bundle) -> pd.Series:
+    """:func:`excess_returns` on the bundle's TLT and cash sleeve."""
+    return excess_returns(asset_prices(bundle).pct_change(fill_method=None),
+                          bundle.prices["TBILL"].pct_change(fill_method=None))
 
 
 def excess_returns(asset_returns: pd.Series, cash_returns: pd.Series) -> pd.Series:

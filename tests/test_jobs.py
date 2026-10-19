@@ -97,4 +97,63 @@ class TestTreasuryMonthEnd:
 
     def test_job_adds_the_overlay(self, bundle):
         book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
-        assert set(summary["overlays"]) == {"treasury_month_end"}
+        assert set(summary["overlays"]) == {"treasury_month_end", "vix_hedge"}
+
+
+def _vix_bundle(vix: list[float], vixy_ret: float = 0.0):
+    from quantzy.data.bundle import DataBundle
+
+    idx = pd.bdate_range("2024-01-01", periods=len(vix))
+    px = pd.DataFrame({"TBILL": 1.0}, index=idx)
+    v = pd.DataFrame({"TBILL": vix}, index=idx, dtype=float)
+    vixy = pd.DataFrame({"TBILL": 20 * (1 + vixy_ret) ** np.arange(len(vix))}, index=idx)
+    return DataBundle.build(px, vix=v, vixy=vixy)
+
+
+class TestVixHedge:
+    def test_regime_switches_with_hysteresis(self):
+        from quantzy.strategies import vix_hedge as vh
+
+        on = vh.regime(pd.Series([20, 12, 20, 29, 31, 20, 14, 13.0]))
+        assert on.tolist() == [False, True, True, True, False, False, False, True]
+
+    def test_band_keeps_a_drifted_holding(self):
+        from quantzy.strategies import vix_hedge as vh
+
+        assert vh.rebalance(vh.SIZE, vh.SIZE * 1.2) == pytest.approx(vh.SIZE * 1.2)
+        assert vh.rebalance(vh.SIZE, vh.SIZE * 1.3) == vh.SIZE
+        assert vh.rebalance(vh.SIZE, 0.0) == vh.SIZE
+        assert vh.rebalance(0.0, vh.SIZE) == 0.0
+
+    def test_target_uses_the_vix_before_the_day(self):
+        from quantzy.strategies import vix_hedge as vh
+
+        b = _vix_bundle([20, 20, 12, 20])
+        d = b.index
+        assert vh.target_after_close(d[2], b) == 0.0  # the VIX through d[1] is 20
+        assert vh.target_after_close(d[3], b) == vh.SIZE  # through d[2]: 12, on
+        assert vh.target_after_close(d[3] + pd.Timedelta(days=1), b, 0.055) == 0.055
+
+    def test_backtest_earns_two_days_after_the_signal(self):
+        from quantzy.strategies import vix_hedge as vh
+
+        r = vh.backtest_returns(_vix_bundle([20, 20, 12, 20, 20, 20], vixy_ret=0.01))
+        # VIX 12 at close 2 -> bought at close 3 (cost) -> first return on day 4
+        assert (r.iloc[:3] == 0).all()
+        assert r.iloc[3] == pytest.approx(-vh.SIZE * vh.COST_BPS / 1e4)
+        assert r.iloc[4] == pytest.approx(vh.SIZE * 0.01)
+
+    def test_job_trades_vixy_outside_the_universe(self, bundle):
+        from quantzy.data.bundle import DataBundle
+        from quantzy.strategies import vix_hedge as vh
+
+        panels = {k: bundle[k] for k in ("market", "carry", "dollar_value", "vixy")}
+        b = DataBundle.build(bundle.prices, vix=bundle["vix"] * 0 + 12.0, **panels)  # calm
+        book, summary = run("core_multiasset", None, 3_000_000.0, b)
+        assert summary["overlays"]["vix_hedge"] == vh.SIZE
+        assert book.loc[vh.ASSET, "target"] == pytest.approx(vh.SIZE)
+        assert book.loc[vh.ASSET, "order"]
+        # already holding a drifted 5.5%: inside the band, no VIXY order
+        book2, _ = run("core_multiasset", pd.Series({vh.ASSET: 0.055}), 3_000_000.0, b)
+        assert book2.loc[vh.ASSET, "target"] == pytest.approx(0.055)
+        assert not book2.loc[vh.ASSET, "order"]
