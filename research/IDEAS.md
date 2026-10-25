@@ -25,22 +25,13 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
 - **Watch:** momentum crashes (2009, Nov 2020); overlap with the trend portfolio.
 - **Bar:** sleeve Sharpe > 0.3 since 2008; +0.02 to the book's full and test-half Sharpe.
 
-### 2. Managed-futures trend, long/short
-- **Why:** the strongest crisis-alpha record (Hurst, Ooi and Pedersen, 100+ years), and the
-  short side (bonds in 2022) is what a long-only book cannot do.
-- **Cheap first step:** correlation of DBMF (2019 on), KMLM (2020 on) and CTA (2022 on) with
-  the book and with our trend portfolio. Above ~0.5 against trend, it is mostly a bet we
-  have.
-- **Full test needs:** roll-adjusted futures data (paid, e.g. Norgate or CSI; or IBKR
-  continuous contracts, short history). Yahoo `=F` series have unadjusted roll gaps.
-
-### 3. Cross-sectional seasonality
+### 2. Cross-sectional seasonality
 - **Why:** sectors and countries that did well in a calendar month tend to repeat in that
   month (Keloharju, Linnainmaa and Nyberg 2016); documented as independent of momentum.
 - **Draft:** on the universe of idea 1, rank by the average return in the same calendar month
   over the past 10-20 years; long/short, beta-neutral, 5% vol. Nearly free once 1 is built.
 
-### 4. Low-beta versus high-beta sectors, beta-neutral
+### 3. Low-beta versus high-beta sectors, beta-neutral
 - **Why:** betting against beta (Frazzini-Pedersen 2014). **Doubt:** it partly overlaps the
   risk weighting the book already does.
 
@@ -81,6 +72,9 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
   with the core. A new source of return needs its own sleeve.
 - A signal that is mostly relative (cross-sectional) cannot be used long-only; test it
   long/short.
+- Managed futures (KMLM) is uncorrelated with the book but earned about nothing outside
+  2022 (2020-26): in the optimizer at a fixed prior its weight swings with the short
+  covariance; at a fixed share it is 2022 insurance (`research_kmlm.py`, closed).
 - Classic cheap premia have decayed since 2008 (G10 currency carry, value and momentum:
   Sharpe 1.07 before, 0.08 after), and published anomalies weaken (Treasury month-end).
 - Check a score's mean before using it as a tilt: an off-centre score is a standing
