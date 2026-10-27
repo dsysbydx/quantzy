@@ -52,9 +52,10 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
   Reg T's 2x; the cap stays at 1.3x and risk aversion moved 1.5 -> 2 (vol ~10%). A 15% vol
   target would need the higher cap. Stress vol under long-run correlations is ~20% against
   8.8% under the model. Portfolio settings are global, not tuned to an alpha.
-- **Why Sharpe keeps rising with risk aversion** (1.46 at 4, where the 1.3x cap no longer
-  binds): lower borrowing explains part; check the rest (the cost band's width relative to
-  smaller positions?) before moving lambda again.
+- **Target vol by scaling** (answered 2026-10-27, `research_vol_scaling.py`): risk aversion 3
+  or 4 levered back to ~10% vol gives 1.34-1.36 against 1.33 at 2, at 1.5-1.6x gross and
+  6% of days above Reg T's 2x. The higher-lambda Sharpe was mostly holding and borrowing
+  less. 11-12% vol would need lambda ~1.5-1.75 and a smaller month-end overlay.
 
 ## Parked (user's call, 2026-10)
 
