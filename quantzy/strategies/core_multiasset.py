@@ -47,7 +47,8 @@ Evidence (``research/research_trend_*.py``)
 
 Where the Sharpe comes from
     About +0.33 over equal weight from risk-based weighting and correlations, ~0 from the
-    class priors, about +0.1 from trend. Leverage and lambda set the size, not the Sharpe.
+    class priors, about +0.1 from trend. A higher leverage cap adds return, not Sharpe; a
+    higher lambda has raised it, by moving the book out of sectors (``research_size_grid.py``).
     Much of the diversification came from bonds hedging equities (2008-2021), which has not
     held since 2022; expect a forward Sharpe nearer 0.5-0.7 than the backtest's ~1.
 
@@ -68,6 +69,10 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     against 0.85; 2020 -5.7% against -8.4%. Adopted as insurance, not as an alpha: it missed
     the research bar (``research_vixy_hedge.py``). These three were added after the
     snapshot above.
+    Risk aversion 2 instead of 1.5 (2026-10-27, a portfolio decision, ``research_size_grid.py``;
+    leverage cap kept at 1.3x): Sharpe 1.33 (train 1.32 / test 1.35) against 1.27, return
+    13.4% against 14.3%, vol 9.8% against 11.0%, max drawdown -15.5% against -17.2%, Calmar
+    0.87 against 0.83; sectors 65% of NAV against 71%, gross ~1.26x. All with both overlays.
     Sharpe is return over vol with no cash deduction.
 """
 
@@ -130,7 +135,7 @@ EXECUTION_COST_BPS = {**{t: 2.0 for t in [*CLASSES["US sectors"], "EFA", "EEM"]}
                       **{t: 1.0 for t in ("QQQ", "GLD", "IEF", "TLT")}, "DBC": 5.0, "UUP": 5.0}
 
 PORTFOLIO = PortfolioConfig(
-    risk_aversion=1.5,  # ~10% vol with these alphas; watch the 8-12% band as alphas change
+    risk_aversion=2.0,  # ~10% vol with these alphas; watch the 8-12% band as alphas change
     max_leverage=1.3,
     max_position=0.2,
     position_cap_of="book",

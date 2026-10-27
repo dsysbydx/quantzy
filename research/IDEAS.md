@@ -47,10 +47,14 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
 
 ## Portfolio decisions (not alphas)
 
-- **Target vol 15% / leverage cap.** Raised 2026-10-19, not yet answered. The 1.3x leverage
-  cap already binds (gross 1.30x), so a higher vol target alone would change little; the real
-  decision is the cap. Stress vol under long-run correlations is ~20% against 8.8% under the
-  model. Portfolio settings are global, not tuned to an alpha.
+- **Target vol 15% / leverage cap.** Answered 2026-10-27 (`research_size_grid.py`): a higher
+  cap adds return but not Sharpe, deepens drawdowns and, with the month-end overlay, passes
+  Reg T's 2x; the cap stays at 1.3x and risk aversion moved 1.5 -> 2 (vol ~10%). A 15% vol
+  target would need the higher cap. Stress vol under long-run correlations is ~20% against
+  8.8% under the model. Portfolio settings are global, not tuned to an alpha.
+- **Why Sharpe keeps rising with risk aversion** (1.46 at 4, where the 1.3x cap no longer
+  binds): lower borrowing explains part; check the rest (the cost band's width relative to
+  smaller positions?) before moving lambda again.
 
 ## Parked (user's call, 2026-10)
 
