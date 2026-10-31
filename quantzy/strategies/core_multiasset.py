@@ -77,6 +77,12 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     1.32 / test 1.36), return 13.4%, vol 9.8%, max drawdown -15.5% (Mar-Sep 2022), Calmar
     0.87, turnover ~1.0x a year, cost ~0.04% a year, gross ~1.26x, sectors 65% of NAV;
     without the overlays Sharpe 1.21. 2026 to date +24.7%.
+    With the pension rebalancing overlay as well (2026-10-31, ``pension_rebalance``,
+    ``-0.25 x clip(z / 2)`` of SPY over the last two trading days, ``z`` the month-to-date
+    SPY - IEF deviation; ``research_month_end_followups.py``): Sharpe 1.37 (train 1.37 / test
+    1.38) against 1.34, return 13.9% against 13.4%, vol 9.8%, max drawdown -15.3% (Apr-Sep
+    2022) against -15.5%, Calmar 0.90 against 0.87. Sized at half the tested 0.5x: lumpy and
+    fading since publication. It shorts SPY in about 61% of months.
     Sharpe is return over vol with no cash deduction.
 """
 
@@ -158,7 +164,7 @@ DOLLAR_INDEX = "DX-Y.NYB"
 VALUE_WINDOW, VALUE_Z_WINDOW = 1260, 2520
 
 #: Rule-based positions run on top of this book (``quantzy.strategies.OVERLAY_REGISTRY``).
-OVERLAYS = ("treasury_month_end", "vix_hedge")
+OVERLAYS = ("treasury_month_end", "vix_hedge", "pension_rebalance")
 #: The VIX hedge overlay's asset, loaded as a panel (it is not in the optimizer's universe).
 HEDGE = "VIXY"
 

@@ -185,7 +185,7 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
     orders["side"] = np.where(orders["trade_weight"] > 0, "BUY", "SELL")
     summary = {
         "strategy": strategy_name, "asof": window.index[-1].date(), "nav": nav,
-        "gross_target": float(target.drop(cash).sum()),
+        "gross_target": float(target.drop(cash).abs().sum()),  # a short adds to gross
         "cash_target": float(target[cash]),
         "turnover": float(0.5 * (target - w).abs().sum()),
         "execution_day": execution_day.date(),

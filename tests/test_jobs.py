@@ -22,7 +22,7 @@ def test_from_cash_buys_to_target(bundle):
     orders = book[book["order"]]
     assert len(orders) and (orders["trade_dollars"] > 0).all()
     risky = book.drop(index=core.CASH)
-    assert risky["target"].sum() == pytest.approx(summary["gross_target"])
+    assert risky["target"].abs().sum() == pytest.approx(summary["gross_target"])
     assert risky["target"].sum() <= core.PORTFOLIO.max_leverage + 1e-6
 
 
@@ -97,7 +97,8 @@ class TestTreasuryMonthEnd:
 
     def test_job_adds_the_overlay(self, bundle):
         book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
-        assert set(summary["overlays"]) == {"treasury_month_end", "vix_hedge"}
+        assert set(summary["overlays"]) == {"treasury_month_end", "vix_hedge",
+                                            "pension_rebalance"}
 
 
 def _vix_bundle(vix: list[float], vixy_ret: float = 0.0):
@@ -157,3 +158,91 @@ class TestVixHedge:
         book2, _ = run("core_multiasset", pd.Series({vh.ASSET: 0.055}), 3_000_000.0, b)
         assert book2.loc[vh.ASSET, "target"] == pytest.approx(0.055)
         assert not book2.loc[vh.ASSET, "order"]
+
+
+def _pension_bundle(spy_oct: float = 0.10, end: str = "2026-10-30"):
+    """Two years of quiet SPY and IEF, then SPY up ``spy_oct`` over October 2026."""
+    from quantzy.data.bundle import DataBundle
+    from quantzy.strategies.treasury_month_end import trading_days
+
+    idx = trading_days("2024-09-01", end)
+    rng = np.random.default_rng(3)
+    spy = pd.Series(100 * np.cumprod(1 + rng.normal(0, 0.005, len(idx))), index=idx)
+    ief = pd.Series(100 * np.cumprod(1 + rng.normal(0, 0.003, len(idx))), index=idx)
+    october = idx >= "2026-10-01"
+    spy[october] *= np.linspace(1, 1 + spy_oct, october.sum())
+    ief[october] = ief[~october].iloc[-1]  # flat bonds in October
+    px = pd.DataFrame({"IEF": ief, "TBILL": 1.0}, index=idx)
+    return DataBundle.build(px, market=pd.DataFrame({"IEF": spy, "TBILL": spy}, index=idx))
+
+
+class TestPensionRebalance:
+    def test_weight_is_signed_and_capped(self):
+        from quantzy.strategies import pension_rebalance as pr
+
+        assert pr.weight(4.0) == -pr.SIZE  # stocks led: short, capped
+        assert pr.weight(-4.0) == pr.SIZE  # stocks lagged: long
+        assert pr.weight(1.0) == pytest.approx(-pr.SIZE / 2)
+        assert pr.weight(float("nan")) == 0.0
+
+    def test_signal_is_causal(self):
+        from quantzy.strategies import pension_rebalance as pr
+
+        b = _pension_bundle()
+        z = pr.z_after_close(pr.asset_prices(b), b.prices[pr.BOND])
+        spy, ief = pr.asset_prices(b).copy(), b.prices[pr.BOND].copy()
+        spy.iloc[-5:] *= 3.0  # corrupt the last week
+        z2 = pr.z_after_close(spy, ief)
+        pd.testing.assert_series_equal(z.iloc[:-5], z2.iloc[:-5])
+
+    def test_window_and_measurement_day(self):
+        from quantzy.strategies import pension_rebalance as pr
+
+        b = _pension_bundle(0.10)
+        # October 2026: window Thu 29, Fri 30; entry close Wed 28; measured at Tue 27's close
+        assert pr.target_after_close("2026-10-27", b) == 0.0
+        held = pr.target_after_close("2026-10-28", b)
+        assert held == -pr.SIZE  # SPY +10% against flat bonds: short at full size
+        assert pr.target_after_close("2026-10-29", b) == held  # held through the window
+        assert pr.target_after_close("2026-10-30", b) == 0.0
+        # the entry day's own close is not used
+        moved = _pension_bundle(0.10)
+        moved["market"].loc["2026-10-28"] *= 0.5
+        assert pr.target_after_close("2026-10-28", moved) == held
+
+    def test_long_when_stocks_lag(self):
+        from quantzy.strategies import pension_rebalance as pr
+
+        assert pr.target_after_close("2026-10-28", _pension_bundle(-0.10)) == pr.SIZE
+
+    def test_backtest_holds_only_in_the_window(self):
+        from quantzy.strategies import pension_rebalance as pr
+
+        b = _pension_bundle(0.10)
+        r = pr.backtest_returns(b)
+        oct_ = r.loc["2026-10"]
+        assert -pr.SIZE * pr.COST_BPS / 1e4 <= oct_.iloc[0] <= 0  # 1 Oct: September's exit cost
+        assert (oct_.loc["2026-10-02":"2026-10-28"] == 0).all()
+        spy_r = pr.asset_prices(b).pct_change().loc["2026-10-30"]
+        assert oct_.loc["2026-10-30"] == pytest.approx(-pr.SIZE * spy_r)
+
+    def test_job_orders_a_short(self, bundle):
+        from quantzy.data.bundle import DataBundle
+        from quantzy.strategies import pension_rebalance as pr
+        from quantzy.strategies.treasury_month_end import trading_days
+
+        # End the data on the close before an entry close, with SPY far ahead of IEF that month.
+        days = trading_days(bundle.index[0], bundle.index[-1])
+        month = days[days.to_period("M") == days[-60].to_period("M")]
+        asof = month[-4]  # the job's orders execute at month[-3], the entry close
+        b = bundle.upto(asof)
+        market = b["market"].copy()
+        this_month = market.index.to_period("M") == asof.to_period("M")
+        market.loc[this_month] *= np.linspace(1, 1.15, this_month.sum())[:, None]
+        panels = {k: b[k] for k in ("vix", "carry", "dollar_value", "vixy")}
+        b = DataBundle.build(b.prices, market=market, **panels)
+        book, summary = run("core_multiasset", None, 3_000_000.0, b)
+        assert summary["overlays"]["pension_rebalance"] == pytest.approx(-pr.SIZE)
+        assert book.loc[pr.ASSET, "target"] == pytest.approx(-pr.SIZE)
+        assert book.loc[pr.ASSET, "order"]
+        assert summary["gross_target"] >= book.drop(index=core.CASH)["target"].sum() + pr.SIZE

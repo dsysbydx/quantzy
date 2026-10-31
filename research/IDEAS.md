@@ -44,8 +44,9 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   the sign rule's gain needs the same-close signal (gone one day earlier), but the
   month-to-date deviation predicts the window (t -4.0, every period).
 - Pension by magnitude (`research_month_end_followups.py`): passes (1.396 vs 1.340, overlay
-  t 2.96, robust to the signal's timing); a candidate third overlay, pending a decision on
-  size given its concentration and fade since 2017. Shorts need an ETF short or futures.
+  t 2.96, robust to the signal's timing). **Adopted 2026-10-31** as the `pension_rebalance`
+  overlay at 0.25x (half the tested size: lumpy, fading), shorting SPY in the ETF account;
+  book 1.34 -> 1.37.
 - TLT / IEF split at the same risk: +0.003, no change; revisit IEF with futures.
 - Still open: the TLT overlay's size once futures margin replaces Reg T.
 
@@ -118,6 +119,9 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 
 ## Monitoring
 
+- **Pension rebalancing review** (adopted 2026-10-31 at 0.25x): its Sharpe has fallen by
+  period (0.91 / 0.77 / 0.35) since publication; retire it if the trailing three years turn
+  negative.
 - **VIX hedge review** (adopted 2026-10-19 as insurance by choice): revisit if over about
   three years it costs more than 1.5% of NAV a year without paying off in a spike.
 
