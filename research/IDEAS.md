@@ -13,11 +13,52 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
 
 ## Next up
 
-### 1. Sector and country relative momentum, long/short
+Ranked 2026-10-31 by expected gain x odds x cost. The lessons below rule out more
+covariance tweaks (four studies), new long-only assets and leverage changes.
+
+### 1. Futures hybrid, step 2: tracking on real futures data
+- **Why:** `research_implementation_cost.py` (branch `implementation-cost`) puts a futures
+  hybrid at ~50 bp/yr over US ETFs at IBKR for a Thai or Singapore holder (+0.05 Sharpe),
+  from withholding, borrowing and fees; a cost, not an alpha, so the odds are high.
+- **Draft:** per contract, excess return over T-bills against the ETF's: tracking error,
+  implied financing spread, DV01 ratio for ZN/IEF and ZB/TLT. Then re-run step 1 with the
+  measured spreads.
+- **Needs:** data. IBKR API (~2 years; exchange subscriptions needed to trade anyway) or
+  Databento (15+ years of CME, CBOT, COMEX; free credit likely covers it).
+
+### 2. Implied vol in the risk model
+- **Why:** `research_downturn_corr.py` found crash months under-forecast mainly through vols
+  (book vol 1.28x predicted from vols, 1.07x from correlations). Implied vol moves the same
+  day; a 48-day EWMA does not. VIX was rejected as an alpha (`research_reentry`, log VIX no
+  IC) but never tried in Sigma; `research_qqq_volmodel` tried halflives and trend scaling.
+- **Draft:** equity ETF vols blended with VIX-implied vol (scaled per ETF by its trailing
+  beta-to-SPY vol ratio), Treasuries with MOVE; correlations unchanged. Judge on forecast
+  quality (QLIKE, bias, left tail) first, then the book.
+- **Watch:** implied vol carries the variance premium (VIX above realized on average), which
+  sizes equities down in calm markets; and the slow re-entry after a V-shaped crash.
+
+### 3. VRP on more assets
+- **Why:** VRP is the book's strongest uncorrelated alpha, but it is one equity-market
+  number. The same premium exists in Treasuries (MOVE), gold (GVZ), oil (OVX) and emerging
+  markets (VXEEM).
+- **Draft:** implied minus realized variance per asset class, 5-year z-score capped at +/-2,
+  on that class's ETFs; IC first, then the book with `PORTFOLIO` fixed.
+
+### 4. More calendar flows, and overlay sizing
+- **Why:** the Treasury month-end overlay gave the largest recent gain (+0.08). Index
+  rebalancing flows are documented for corporate bonds too, and at quarter-ends.
+- **Draft:** month-end windows in IEF and LQD, quarter-end variants; and the overlay's size
+  once futures margin replaces Reg T's 2x limit.
+- **Watch:** published anomalies decay (the TLT overlay's Sharpe fell 1.54 -> 0.43 by period).
+
+### 5. Sector and country relative momentum, long/short
 - **Why:** relative sector momentum had the strongest IC we found (t 4.8) but could not be
   used long-only; the gain is in shorting the losers. Industry and country momentum is
   well documented (Moskowitz-Grinblatt 1999; Asness, Moskowitz and Pedersen 2013) and,
   beta-hedged, should be close to independent of the book.
+- **Doubt:** `research_long_short` found relative momentum failing in every structure inside
+  the book; a separate beta-hedged sleeve at its own vol is a different test, but the prior
+  is weaker than the IC suggests.
 - **Draft:** 12-1 month return (also 6-1), ranked within sectors (9 SPDRs) and within ~15
   country ETFs; long top third, short bottom third, beta-neutral to SPY on 1-year betas,
   5% vol, monthly; 2 bp a trade plus 0.5%/yr borrow on shorts. Long check: 12 Fama-French
@@ -25,25 +66,37 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
 - **Watch:** momentum crashes (2009, Nov 2020); overlap with the trend portfolio.
 - **Bar:** sleeve Sharpe > 0.3 since 2008; +0.02 to the book's full and test-half Sharpe.
 
-### 2. Cross-sectional seasonality
+### 6. Cross-sectional seasonality
 - **Why:** sectors and countries that did well in a calendar month tend to repeat in that
   month (Keloharju, Linnainmaa and Nyberg 2016); documented as independent of momentum.
-- **Draft:** on the universe of idea 1, rank by the average return in the same calendar month
-  over the past 10-20 years; long/short, beta-neutral, 5% vol. Nearly free once 1 is built.
+- **Draft:** on the universe of idea 5, rank by the average return in the same calendar month
+  over the past 10-20 years; long/short, beta-neutral, 5% vol. Nearly free once 5 is built.
 
-### 3. Low-beta versus high-beta sectors, beta-neutral
+### 7. Commodity carry (futures-curve basis), long/short
+- **Why:** strong evidence (Gorton-Rouwenhorst; Koijen et al. 2018) and independent of the
+  book; our commodity tests used ETFs and trend, not carry.
+- **Needs:** futures curves. Pairs with buying futures data for idea 1.
+
+### 8. Universe cleanup
+- **Why:** the 17 overlap: five sector SPDRs explain 96.5% of QQQ's variance; EFA overlaps
+  EEM and XLI (`research_corr_factor.py`). Dropping near-duplicates may steady the
+  concentration swings.
+- **Doubt:** four covariance studies say conditioning is not what costs the book.
+
+### 9. Tail hedge on real option prices
+- **Why:** `research_tail_hedge.py` priced SPX puts off the VIX and found the regime rule
+  within pricing error; real end-of-day option prices would settle it.
+- **Needs:** Cboe DataShop or ORATS.
+
+### 10. Low-beta versus high-beta sectors, beta-neutral
 - **Why:** betting against beta (Frazzini-Pedersen 2014). **Doubt:** it partly overlaps the
   risk weighting the book already does.
 
 ## Needs data first
 
-- **Commodity carry (futures-curve basis), long/short.** Strong evidence (Gorton-Rouwenhorst;
-  Koijen et al. 2018) and independent, but needs futures curves.
-- **Tail hedge on real option prices.** `research_tail_hedge.py` priced SPX puts off the VIX
-  and found the regime rule within pricing error; real end-of-day option prices (Cboe
-  DataShop, ORATS) would settle it.
 - **Put/call ratio** (a Fear & Greed component). Check Cboe data access first; the other two
   F&G parts we tested (credit, breadth) did not add to trend and VRP.
+- Ideas 1, 7 and 9 above also need data.
 
 ## Portfolio decisions (not alphas)
 
