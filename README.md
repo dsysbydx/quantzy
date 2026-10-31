@@ -71,7 +71,7 @@ Two things make the production slice trustworthy:
 | `quantzy.construction` | shared     | `Portfolio`, `Trade`, target-vs-current diff |
 | `quantzy.metrics`      | shared     | Sharpe, drawdown, turnover — scores any return series |
 | `quantzy.backtest`     | *tooling*  | `WalkForwardBacktester`, `SimulatedBook` |
-| `quantzy.research`     | *tooling*  | `information_coefficient`, `ic_decay`, `holdout_tune` |
+| `quantzy.research`     | *tooling*  | `information_coefficient`, `ic_decay`, `holdout_tune`, `describe_scores`, `compare_tail_treatments` |
 | `quantzy.portfolio`    | shared     | `PortfolioConfig`: book-level settings shared by every alpha |
 | `quantzy.strategies`   | **saved**  | Strategies a production job may run, e.g. `core_multiasset` |
 | `quantzy.jobs`         | production | `daily`: run a saved strategy against the real book, emit orders |
@@ -139,7 +139,9 @@ keep `PORTFOLIO` fixed and compare against the saved book:
 candidate = core.build(alphas={**core.ALPHAS, "value": (Value(window=756), 0.1)})
 ```
 
-Judge it on its IC (interleaved folds, `chunk_folds` + `newey_west_t`) and on the Sharpe it
+Judge it on its IC (interleaved folds, `chunk_folds` + `newey_west_t`), on whether its tails
+are treated robustly (distribution, then clip +/-2, +/-3 or winsorize, compared by Pearson IC;
+see [Exploring a new signal](research/README.md#exploring-a-new-signal)), and on the Sharpe it
 adds over `core.build()`, not on the book's total. Promote it by editing `ALPHAS`, in its own
 commit, and update the snapshot in the module docstring.
 
@@ -165,7 +167,11 @@ class PriceToMA(Signal):
         return self.window
 ```
 
-Add it to `ALL_SIGNALS` in `tests/test_signals.py` and the causality suite covers it.
+Add it to `ALL_SIGNALS` in `tests/test_signals.py` and the causality suite covers it. Before
+adopting it, run the steps in [Exploring a new signal](research/README.md#exploring-a-new-signal):
+IC, the score's distribution (`describe_scores`), and a tail-treatment comparison
+(`tail_treatments` + `compare_tail_treatments`). If a cap wins, make it a field of the signal
+(as `cap` is on `EwmacTrend`), so research and production clip the same way.
 
 Three things are easy to get wrong, so each one fails loudly rather than silently:
 

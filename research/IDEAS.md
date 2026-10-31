@@ -84,5 +84,9 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
   Sharpe 1.07 before, 0.08 after), and published anomalies weaken (Treasury month-end).
 - Check a score's mean before using it as a tilt: an off-centre score is a standing
   position, not timing (credit momentum C3).
+- Check a score's tails before trusting its IC, and compare tail treatments by Pearson IC
+  (rank IC cannot see them). Uncapped, the VRP z-score is noise; capped at +/-2 it is a
+  signal (`research_tail_treatment.py`). A cap that clips a thin-tailed score often (the
+  dollar, 9% of days) costs a little, but not enough to matter in the book.
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.

@@ -18,6 +18,40 @@ Conventions they share: Sharpe is return over vol with no cash deduction; IC is 
 next-day returns over trailing vol with 47-day interleaved folds and Newey-West t-stats;
 candidates are pre-specified before they are run and judged with `PORTFOLIO` held fixed.
 
+## Exploring a new signal
+
+Work on the **unit score**: the signal before any times-vol, in Sharpe units per unit of
+weight (`signal.raw(bundle) / realized_vol(prices, signal.vol_window, annualize=True)` for
+the return-unit signals), NaN until each asset has warmed up. In order:
+
+1. **IC on the score as designed.** `pooled_time_series_ic` (or `information_coefficient` for
+   a cross-sectional signal), next-day return over 60-day vol, `chunk_folds(index, 47)` with
+   each fold standardized on the other, `newey_west_t`; then five-year periods and longer
+   horizons. Fix the candidate settings and the adoption rule before running it.
+2. **Distribution.** `describe_scores(unit, by_asset=True)`: moments, the 1/5/95/99th
+   percentiles, `max_abs`, the share beyond 2 and 3. Excess kurtosis well above 0, a
+   `max_abs` far past the 99th percentile, or more than ~0.3% beyond 3 means fat tails. A
+   mean far from 0 is a standing position, not timing. Mass piled at the bounds (a saturated
+   `tanh`) is a scaling problem, not a tail problem.
+3. **Tail treatment.** Build the score *without* any cap of its own, then
+   `tail_treatments(unit)` gives: none, clip +/-2, clip +/-3, and winsorize at the 1st / 99th
+   percentiles. Compare them with `compare_tail_treatments(variants, prices)` on the lagged
+   scores (`v.shift(signal.lag)`). Two rules:
+   - Use **Pearson** IC here (the default). Clipping and winsorizing keep the order of the
+     values, so a rank IC cannot tell them apart; print it only as a check (it should move
+     by less than ~0.001).
+   - Winsorize **causally**. `winsorize_scores` takes each asset's percentiles from its own
+     history through the current row; full-sample percentiles use the future.
+
+   Choose on robustness, not level: the treatment with the best held-out t (`held_out_t`)
+   and the best `worst_period`. Keep the simpler fixed clip unless another treatment wins on
+   both; a gain only on all dates is fitting the tails it can see.
+4. **Book.** Put the chosen treatment into the signal (a `cap` field, as `EwmacTrend` and
+   `VarianceRiskPremium` have), add it to `core.build(alphas={**core.ALPHAS, ...})` with
+   `PORTFOLIO` fixed, and judge the Sharpe it adds, train and test halves separately.
+
+`research_tail_treatment.py` is the worked example, run on the four alphas in the saved book.
+
 Ideas not yet tested, open portfolio questions and lessons so far are in
 [IDEAS.md](IDEAS.md).
 
@@ -81,3 +115,4 @@ Ideas not yet tested, open portfolio questions and lessons so far are in
 | `research_prior_weight` | The prior's weight in mu, 1.0 to 0.1, picked on the train half; at 0.5 and 0.25 also at the same book size | x0.5 1.30 against 1.15 (test 1.31), but at the same size 1.15 / 1.08: the gain is a smaller book under the 1.3x cap, not more weight on the other alphas | No (a sizing question) | 2e4b947 |
 | `research_size_grid` | Risk aversion 1.5-4 x leverage cap 1.3-2x, core plus overlays | A higher cap adds return, not Sharpe, and breaks Reg T with the month-end overlay; Sharpe rises with lambda (1.27 / 1.33 / 1.40 / 1.46) as return falls (14.3% -> 10.3%) | Yes, lambda 2 (cap stays 1.3x), b07be57 | 3a40160 |
 | `research_vol_scaling` | Risk aversion 3 and 4 levered back to 10-12% vol (constant k), against 2 unscaled, with the overlays | At ~10% vol 1.34-1.36 against 1.33, at 1.5-1.6x gross and 6% of days above Reg T 2x; at 11-12% Sharpe falls and drawdowns reach -20% | No (stay at lambda 2) | dc951cb |
+| `research_tail_treatment` | Each saved alpha's unit-score distribution; no cap, clip +/-2 (saved), +/-3, causal winsor 1/99 by Pearson IC | VRP has the only real tails (excess kurtosis 63) and needs +/-2 (held-out t 0.15 uncapped -> 0.67); EWMAC best at +/-2; trend is a bounded tanh; the dollar's alternatives pass on IC but lower the book (1.334-1.337 against 1.340) | No (keep the saved caps) | |

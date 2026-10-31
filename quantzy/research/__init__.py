@@ -6,6 +6,13 @@ calls :meth:`~quantzy.strategy.Strategy.decide` and nothing else in this package
 """
 
 from quantzy.research.compare import compare, summarize, yearly
+from quantzy.research.distribution import (
+    clip_scores,
+    compare_tail_treatments,
+    describe_scores,
+    tail_treatments,
+    winsorize_scores,
+)
 from quantzy.research.ic import (
     ICSummary,
     chunk_folds,
@@ -39,6 +46,11 @@ __all__ = [
     "pooled_time_series_ic",
     "chunk_folds",
     "newey_west_t",
+    "describe_scores",
+    "clip_scores",
+    "winsorize_scores",
+    "tail_treatments",
+    "compare_tail_treatments",
     "holdout_tune",
     "TuneResult",
     "label",
