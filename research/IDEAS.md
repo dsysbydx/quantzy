@@ -31,12 +31,9 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   Sigma and `mu` consistently (`research_implied_vol_mu.py`): 1.15. Implied-vol sizing cuts
   exposure after selloffs, selling the premium the `vrp` alpha buys.
 
-### 3. VRP on more assets
-- **Why:** VRP is the book's strongest uncorrelated alpha, but it is one equity-market
-  number. The same premium exists in Treasuries (MOVE), gold (GVZ), oil (OVX) and emerging
-  markets (VXEEM).
-- **Draft:** implied minus realized variance per asset class, 5-year z-score capped at +/-2,
-  on that class's ETFs; IC first, then the book with `PORTFOLIO` fixed.
+### 3. VRP on more assets -- closed 2026-10-31
+- `research_vrp_multi.py`: Treasuries (MOVE), gold (GVZ) and oil (OVX) have no usable IC
+  (gold the wrong sign); the book falls to 1.16 against 1.21. VXEEM has no history on Yahoo.
 
 ### 4. More calendar flows, and overlay sizing -- tested 2026-10-31
 - `research_month_end_flows.py`: IEF month-end passes but duplicates the TLT overlay
@@ -122,6 +119,9 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - **Pension rebalancing review** (adopted 2026-10-31 at 0.25x): its Sharpe has fallen by
   period (0.91 / 0.77 / 0.35) since publication; retire it if the trailing three years turn
   negative.
+- **Equity VRP review**: its 1-day IC is ~0 since 2017 (t 0.2; `research_vrp_multi.py`)
+  against t 1.8 over the whole sample. Re-check its book contribution by period before
+  the next snapshot; retire it if it adds nothing since 2017.
 - **VIX hedge review** (adopted 2026-10-19 as insurance by choice): revisit if over about
   three years it costs more than 1.5% of NAV a year without paying off in a spike.
 
