@@ -6,6 +6,10 @@ Runs the saved strategy and a priors-only baseline through the walk-forward engi
 equal-weight benchmark, and embeds the results as JSON in ``core_multiasset.html`` (the
 page's charts, tables, period selector and signal heatmap). The page text describes
 ``core_multiasset`` by hand: update it when the strategy changes.
+
+To share it, publish the output file as a Claude Artifact to the existing URL,
+https://claude.ai/artifact/KagCis5282eJCN3qJmnim9, so the link others hold stays the same (see
+"Sharing the tear-sheet" in the README).
 """
 
 from __future__ import annotations

@@ -101,6 +101,15 @@ uv run python -m quantzy.jobs.daily --nav 3000000 --holdings positions.csv --out
 uv run python tools/tearsheet/export.py      # -> .cache/tearsheet/core_multiasset.html
 ```
 
+### Sharing the tear-sheet
+
+The HTML file is for local viewing. The shared copy is a Claude Artifact:
+<https://claude.ai/artifact/KagCis5282eJCN3qJmnim9> (private; share it from the page's
+Share menu). To update it after re-running the export, ask Claude Code to *publish
+`.cache/tearsheet/core_multiasset.html` to that artifact URL*. Publishing to the existing
+URL keeps the link people already have; publishing without it creates a new artifact. To
+refresh prices first, delete `.cache/prices` (see below).
+
 `positions.csv` holds `ticker,shares` (or `ticker,weight`). With no holdings file the job
 funds the account from cash. It fetches fresh prices; research code reads through
 `CachedReader`, which caches to `.cache/` (parquet) and never refreshes a request without an

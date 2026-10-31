@@ -73,6 +73,10 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     leverage cap kept at 1.3x): Sharpe 1.33 (train 1.32 / test 1.35) against 1.27, return
     13.4% against 14.3%, vol 9.8% against 11.0%, max drawdown -15.5% against -17.2%, Calmar
     0.87 against 0.83; sectors 65% of NAV against 71%, gross ~1.26x. All with both overlays.
+    Refreshed 2026-10-31, the saved book as above on data to 2026-10-30: Sharpe 1.34 (train
+    1.32 / test 1.36), return 13.4%, vol 9.8%, max drawdown -15.5% (Mar-Sep 2022), Calmar
+    0.87, turnover ~1.0x a year, cost ~0.04% a year, gross ~1.26x, sectors 65% of NAV;
+    without the overlays Sharpe 1.21. 2026 to date +24.7%.
     Sharpe is return over vol with no cash deduction.
 """
 
