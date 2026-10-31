@@ -144,5 +144,8 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - IC on next-day returns misses crash timing. Skipping the last month raised the trend
   alphas' equity IC (t 0.6 -> 2.8) and lowered the book (1.24 -> 1.18-1.23): the tilt pays
   in exits from fast selloffs, a few days the IC barely weights (`research_trend_skip.py`).
+- But a regime gate would not have rescued it: a perfect hindsight crash gate adds +0.004
+  (`research_crash_split.py`). An IC gain of ~0.015 on a tilt of k ~0.05 is worth a few bp a
+  year. Refining existing tilts has run out; new Sharpe needs a return source of its own.
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.
