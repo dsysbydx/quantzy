@@ -119,9 +119,6 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - **Pension rebalancing review** (adopted 2026-10-31 at 0.25x): its Sharpe has fallen by
   period (0.91 / 0.77 / 0.35) since publication; retire it if the trailing three years turn
   negative.
-- **Equity VRP review**: its 1-day IC is ~0 since 2017 (t 0.2; `research_vrp_multi.py`)
-  against t 1.8 over the whole sample. Re-check its book contribution by period before
-  the next snapshot; retire it if it adds nothing since 2017.
 - **VIX hedge review** (adopted 2026-10-19 as insurance by choice): revisit if over about
   three years it costs more than 1.5% of NAV a year without paying off in a spike.
 
@@ -155,5 +152,8 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - But a regime gate would not have rescued it: a perfect hindsight crash gate adds +0.004
   (`research_crash_split.py`). An IC gain of ~0.015 on a tilt of k ~0.05 is worth a few bp a
   year. Refining existing tilts has run out; new Sharpe needs a return source of its own.
+- The 1-day IC can fail both ways: the equity VRP's is ~0 since 2017, yet it added +0.048
+  Sharpe (t 2.1) there; its edge is at weeks. Judge a tilt on the horizon it is held for
+  and on the book (`research_vrp_review.py`).
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.
