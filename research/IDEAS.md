@@ -43,9 +43,10 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   (corr 0.92); LQD fails the test half; quarter-ends are not special. Pension rebalancing:
   the sign rule's gain needs the same-close signal (gone one day earlier), but the
   month-to-date deviation predicts the window (t -4.0, every period).
-- **Next:** pension rebalancing by magnitude: SPY position proportional to the SPY-IEF
-  month-to-date return through the day before the entry close, capped; one candidate,
-  t >= 2 bar. Shorts need futures (see idea 1); gross on window days reaches ~2.3x.
+- Pension by magnitude (`research_month_end_followups.py`): passes (1.396 vs 1.340, overlay
+  t 2.96, robust to the signal's timing); a candidate third overlay, pending a decision on
+  size given its concentration and fade since 2017. Shorts need an ETF short or futures.
+- TLT / IEF split at the same risk: +0.003, no change; revisit IEF with futures.
 - Still open: the TLT overlay's size once futures margin replaces Reg T.
 
 ### 5. Sector and country relative momentum, long/short
