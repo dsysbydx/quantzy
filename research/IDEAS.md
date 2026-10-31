@@ -26,10 +26,10 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - **Needs:** data. IBKR API (~2 years; exchange subscriptions needed to trade anyway) or
   Databento (15+ years of CME, CBOT, COMEX; free credit likely covers it).
 
-### 2. Implied vol in the risk model -- tested 2026-10-31, not adopted
-- `research_implied_vol_risk.py`: better forecasts, worse book (1.12-1.16 against 1.21, down
-  in the test half). Open follow-up: implied vol in `mu`'s vol scaling as well as Sigma, so
-  the prior's `mu / var` does not fall after selloffs. A new candidate; judge it as one.
+### 2. Implied vol in the risk model -- closed 2026-10-31
+- Sigma only (`research_implied_vol_risk.py`): better forecasts, worse book (1.16 vs 1.21).
+  Sigma and `mu` consistently (`research_implied_vol_mu.py`): 1.15. Implied-vol sizing cuts
+  exposure after selloffs, selling the premium the `vrp` alpha buys.
 
 ### 3. VRP on more assets
 - **Why:** VRP is the book's strongest uncorrelated alpha, but it is one equity-market
@@ -138,5 +138,8 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - A high condition number is not proof of estimation noise: on these 17 ETFs it is overlap
   (QQQ vs XLK/XLY, TLT vs IEF), present on 17 years of data too. Check the smallest
   eigenvectors on a long sample before cleaning a covariance (`research_corr_factor.py`).
+- A better vol forecast is not a better book. Implied vol forecast crash months better but
+  sized the book worse: it de-risks after selloffs, when forward returns are high
+  (`research_implied_vol_risk.py`, `research_implied_vol_mu.py`).
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.

@@ -53,7 +53,8 @@ Likely why (not tested): ``mu`` scales each prior by the ETF's own trailing 60-d
 putting implied vol into Sigma alone lowers ``mu / var`` exactly when implied vol is high --
 after selloffs, when the book most needs to re-enter -- and the 1-year realized-vol scale
 keeps that effect for a year. Implied vol in ``mu``'s vol as well is the consistent version;
-it is a new candidate, not a rescue of this one.
+it is a new candidate, not a rescue of this one. Tested in
+``research_implied_vol_mu.py``: it was not the cause (1.15).
 
 Usage:
     uv run python research/research_implied_vol_risk.py [--workers 5]
