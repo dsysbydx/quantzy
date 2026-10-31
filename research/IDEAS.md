@@ -26,16 +26,10 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - **Needs:** data. IBKR API (~2 years; exchange subscriptions needed to trade anyway) or
   Databento (15+ years of CME, CBOT, COMEX; free credit likely covers it).
 
-### 2. Implied vol in the risk model
-- **Why:** `research_downturn_corr.py` found crash months under-forecast mainly through vols
-  (book vol 1.28x predicted from vols, 1.07x from correlations). Implied vol moves the same
-  day; a 48-day EWMA does not. VIX was rejected as an alpha (`research_reentry`, log VIX no
-  IC) but never tried in Sigma; `research_qqq_volmodel` tried halflives and trend scaling.
-- **Draft:** equity ETF vols blended with VIX-implied vol (scaled per ETF by its trailing
-  beta-to-SPY vol ratio), Treasuries with MOVE; correlations unchanged. Judge on forecast
-  quality (QLIKE, bias, left tail) first, then the book.
-- **Watch:** implied vol carries the variance premium (VIX above realized on average), which
-  sizes equities down in calm markets; and the slow re-entry after a V-shaped crash.
+### 2. Implied vol in the risk model -- tested 2026-10-31, not adopted
+- `research_implied_vol_risk.py`: better forecasts, worse book (1.12-1.16 against 1.21, down
+  in the test half). Open follow-up: implied vol in `mu`'s vol scaling as well as Sigma, so
+  the prior's `mu / var` does not fall after selloffs. A new candidate; judge it as one.
 
 ### 3. VRP on more assets
 - **Why:** VRP is the book's strongest uncorrelated alpha, but it is one equity-market
