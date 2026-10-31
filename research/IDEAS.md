@@ -88,5 +88,8 @@ VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treas
   (rank IC cannot see them). Uncapped, the VRP z-score is noise; capped at +/-2 it is a
   signal (`research_tail_treatment.py`). A cap that clips a thin-tailed score often (the
   dollar, 9% of days) costs a little, but not enough to matter in the book.
+- A high condition number is not proof of estimation noise: on these 17 ETFs it is overlap
+  (QQQ vs XLK/XLY, TLT vs IEF), present on 17 years of data too. Check the smallest
+  eigenvectors on a long sample before cleaning a covariance (`research_corr_factor.py`).
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.
