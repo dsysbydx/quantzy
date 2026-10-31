@@ -141,5 +141,8 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - A better vol forecast is not a better book. Implied vol forecast crash months better but
   sized the book worse: it de-risks after selloffs, when forward returns are high
   (`research_implied_vol_risk.py`, `research_implied_vol_mu.py`).
+- IC on next-day returns misses crash timing. Skipping the last month raised the trend
+  alphas' equity IC (t 0.6 -> 2.8) and lowered the book (1.24 -> 1.18-1.23): the tilt pays
+  in exits from fast selloffs, a few days the IC barely weights (`research_trend_skip.py`).
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.
