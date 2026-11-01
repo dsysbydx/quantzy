@@ -22,14 +22,17 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 | Rank | # | Idea | Why this rank |
 |---|---|---|---|
 | 1 | 1 | Futures hybrid, step 2 | Cost, not alpha: ~50 bp/yr, ~+0.05 Sharpe, high odds. Blocked on the data choice (IBKR ~2y, or Databento 15y+). Also unlocks sizing the month-end overlays on margin. |
-| 2 | 13 | Forced-flow effects (auctions, reconstitution) | New. The only mechanism type that has paid lately; free daily data; one study each. |
-| 3 | 11 | Forward valuation tilt | Different information (analysts' expectations, not price); a coarse free test on Damodaran's annual data (~1 day of mapping). Modest prior: price-based value failed and sector priors are sensitive. |
-| 4 | 7 | Commodity carry, long/short | A different, well-documented premium, independent of the book. Needs futures curves: buy with #1's data. |
-| 5 | 6 | Cross-sectional seasonality | A calendar mechanism, free, independent of momentum in the literature. Low-medium odds. |
-| 6 | 5 | Relative momentum, long/short | Weaker now: trend's breadth paid ~0 since 2017 (#12) and relative momentum failed inside the book. |
-| 7 | 12 | Breadth trend sleeve, step 2 (futures) | Step 1 failed (Sharpe 0.13, ~0 since 2017). Only alongside #1 and #7 on the same data. |
-| 8 | 9 | Tail hedge on real options | Insurance, not alpha; paid options data. |
-| 9 | 10 | Low-beta vs high-beta sectors | Low: overlaps the book's risk weighting. |
+| 2 | 14 | FX month-end hedge rebalancing | New flow, the pension overlay's family: foreign holders reset dollar hedges at the month-end fix, sized by the month's US vs foreign equity move (Melvin and Prins 2015); free data. Must add beyond pension. |
+| 3 | 13 | Forced-flow effects (auctions, reconstitution) | New. The only mechanism type that has paid lately; free daily data; one study each. |
+| 4 | 11 | Forward valuation tilt | Different information (analysts' expectations, not price); a coarse free test on Damodaran's annual data (~1 day of mapping). Modest prior: price-based value failed and sector priors are sensitive. |
+| 5 | 15 | Options-expiration week | Dealer gamma hedging around the third Friday; free daily data, untested here. Medium. |
+| 6 | 7 | Commodity carry, long/short | A different, well-documented premium, independent of the book. Needs futures curves: buy with #1's data. |
+| 7 | 16 | Commodity index roll ("Goldman roll") | Index funds roll on business days 5-9 each month; front-run the calendar spread (Mou 2011). Needs front and second-month futures: buy with #1 / #7's data. |
+| 8 | 6 | Cross-sectional seasonality | A calendar mechanism, free, independent of momentum in the literature. Low-medium odds. |
+| 9 | 5 | Relative momentum, long/short | Weaker now: trend's breadth paid ~0 since 2017 (#12) and relative momentum failed inside the book. |
+| 10 | 12 | Breadth trend sleeve, step 2 (futures) | Step 1 failed (Sharpe 0.13, ~0 since 2017). Only alongside #1 and #7 on the same data. |
+| 11 | 9 | Tail hedge on real options | Insurance, not alpha; paid options data. |
+| 12 | 10 | Low-beta vs high-beta sectors | Low: overlaps the book's risk weighting. |
 
 ### 1. Futures hybrid, step 2: tracking on real futures data
 - **Why:** `research_implementation_cost.py` (branch `implementation-cost`) puts a futures
@@ -61,6 +64,37 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   bar. **Adopted 2026-11-01** as `treasury_auction_10y` / `_30y` at 0.125x (book 1.37 -> 1.44).
 - **Still open:** Russell reconstitution (IWM, last Friday of June): ~25 events since 2000,
   low power.
+
+### 14. FX month-end hedge rebalancing
+- **Why:** foreign investors in US equities hedge their dollar exposure and reset the hedges
+  at the month-end London 4 pm fix. When US equities rallied in the month their dollar
+  exposure grew, so they sell dollars into month-end; the reverse after a fall. US investors
+  hedging foreign equities do the mirror trade, so the net flow follows US *minus* foreign
+  equity returns (Melvin and Prins 2015). The same mechanism family as the pension overlay.
+- **Draft:** over the last two trading days, ``-size * clip(z / 2)`` in UUP, ``z`` the SPY
+  minus EFA month-to-date return through the close before entry over its expected spread
+  (the pension overlay's construction); EUR/USD from 2003 as a longer check. Judged on top of
+  the saved book, which already holds the pension overlay.
+- **Watch:** overlap with pension (both read the month's equity move); the fix is at 11 am ET
+  on the last day, so daily closes also catch any reversal after it.
+
+### 15. Options-expiration week
+- **Why:** dealers hedge their option books, and around the monthly expiry (third Friday)
+  that hedging has been linked to positive equity returns in expiration week and weaker ones
+  the week after. Free daily data; the dates follow a rule.
+- **Draft:** SPY excess return in expiration week against other weeks, by period; an overlay
+  long in expiration week if it holds.
+
+### 16. Commodity index roll front-running ("Goldman roll")
+- **Why:** the large commodity indexes roll from the front contract to the next on business
+  days 5-9 each month, a predictable flow that cheapens the front against the next (Mou
+  2011). Sell the spread ahead of the roll window.
+- **Needs:** front- and second-month futures prices (with ideas 1 and 7's data).
+
+### Lower priority flow ideas (2026-11-01)
+- Leveraged-ETF rebalancing into the close (needs intraday data; the daily reversal is the
+  known short-term reversal); vol-target and risk-parity deleveraging after vol spikes (hard
+  to separate from crash and rebound dynamics); turn of the year in small caps (decayed).
 
 ### 11. Forward valuation tilt across sectors and regions (needs data)
 - **Why (the user's idea, 2026-11-01):** tilt toward cheap expected earnings with limited
