@@ -155,5 +155,7 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - The 1-day IC can fail both ways: the equity VRP's is ~0 since 2017, yet it added +0.048
   Sharpe (t 2.1) there; its edge is at weeks. Judge a tilt on the horizon it is held for
   and on the book (`research_vrp_review.py`).
+- No crowd pushes through the 200-day line: SMA crosses follow big moves and reverse, and
+  the drop-off "peek" is ~0.1% a day (`research_sma_frontrun.py`).
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.
