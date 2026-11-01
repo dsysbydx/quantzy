@@ -54,8 +54,10 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   mid-month, so probably little).
 - **Auction cycle tested 2026-11-01** (`research_auction_cycle.py`): fails. The recovery
   after auctions is not reliable; the book falls to 1.361 at much higher vol. The
-  *concession before* auctions is significant since 2017 (IEF t -2.8, TLT t -2.4). Parked
-  follow-up: short IEF / TLT only into auctions, smaller (~0.25x), one candidate, t >= 2.
+  *concession before* auctions is significant since 2017 (IEF t -2.8, TLT t -2.4).
+- **Short-only follow-up passes** (`research_auction_preshort.py`): book 1.371 -> 1.489, overlay
+  t 2.02, timing confirmed by a placebo; caveats: wrong sign in 2002-08, post-hoc, t at the
+  bar. A candidate fourth overlay, pending a decision on adoption and size.
 - **Still open:** Russell reconstitution (IWM, last Friday of June): ~25 events since 2000,
   low power.
 
