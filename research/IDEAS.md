@@ -73,17 +73,9 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   book; our commodity tests used ETFs and trend, not carry.
 - **Needs:** futures curves. Pairs with buying futures data for idea 1.
 
-### 8. Universe: drop QQQ, or complete the sector set (XLC, XLRE)
-- **Why:** the sector SPDRs explain 96.5% of QQQ's variance (`research_corr_factor.py`)
-  and the book holds ~3% of NAV in it. But the universe has only the nine original SPDRs:
-  no communication services (XLC: GOOGL, META, NFLX since the 2018 GICS change) and no real
-  estate (XLRE), so part of QQQ's role is the mega-cap communication names no other ETF
-  carries. QQQ is also the cleanest futures leg (MNQ) in the hybrid.
-- **Draft:** three universes, everything else fixed: as saved; without QQQ; without QQQ and
-  with XLC and XLRE (equity prior 0.30, trend and VRP like the other sectors). XLC starts
-  2018-06: a proxy before then (e.g. an XLK/XLY/telecom blend) or a 2019-26 comparison.
-- **Doubt:** four covariance studies say conditioning is not what costs the book; the
-  universe completeness is the new part.
+### 8. Universe: drop QQQ, or complete the sector set -- closed 2026-11-01
+- `research_universe_qqq.py`: no change. Without QQQ 1.208 vs 1.211; with XLC and XLRE in
+  2019-26, 1.062 vs 1.078. QQQ stays (free, and the MNQ futures leg).
 
 ### 9. Tail hedge on real option prices
 - **Why:** `research_tail_hedge.py` priced SPX puts off the VIX and found the regime rule
