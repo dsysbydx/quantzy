@@ -130,8 +130,13 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   per class, long/short, weekly; costs, short borrow, financing. Standalone Sharpe by period,
   correlation with the book (also in its worst months), and the book plus the sleeve at
   fixed risk shares.
-- **Step 2 (data):** the same on ~60-100 futures markets back to 1980 (Norgate, ~$30/month),
-  which also serves ideas 1 and 7.
+- **Step 1 done 2026-11-01** (`research_breadth_sleeve.py`): fails. Sharpe 0.13 since 2008-09
+  (-0.06 since 2017), net long and +0.32 correlated with the book, lowers it at every share;
+  ~1.5%/yr of ETF costs and financing. Trend's IC across these markets is ~0 since 2017.
+- **Step 2 (data):** the same on ~60-100 futures markets back to 1980 (Norgate, ~$30/month).
+  Futures cut most of the drag and add pre-2009 history, but the recent decade is the
+  question, and step 1 says it is ~0; worth running only alongside ideas 1 and 7, on the
+  same data, not on its own.
 
 ## Needs data first
 
