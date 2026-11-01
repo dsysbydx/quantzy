@@ -57,6 +57,7 @@ from quantzy.universe import Asset, Universe  # noqa: E402
 
 SPLIT = pd.Timestamp("2017-07-26")
 NEW = ["XLC", "XLRE"]
+NEW_COST_BPS: dict[str, float] = {}  # one-way cost per new ticker; default 2 bp
 UNIVERSES = {
     "saved": core.RISKY,
     "no QQQ": [t for t in core.RISKY if t != "QQQ"],
@@ -93,7 +94,7 @@ def strategy(name: str) -> Strategy:
         "dollar_value": core.ALPHAS["dollar_value"],
     }
     cost = {t: v for t, v in core.EXECUTION_COST_BPS.items() if t in risky}
-    cost |= {t: 2.0 for t in NEW if t in risky}
+    cost |= {t: NEW_COST_BPS.get(t, 2.0) for t in NEW if t in risky}
     portfolio = dataclasses.replace(core.PORTFOLIO, execution_cost_bps=cost)
     universe = Universe(name=name, assets=[Asset(t, t, "etf") for t in risky]
                         + [Asset(core.CASH, "T-bill", "cash_equivalent")])
