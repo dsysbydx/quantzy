@@ -188,6 +188,7 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   the drop-off "peek" is ~0.1% a day (`research_sma_frontrun.py`).
 - Per-asset Sharpe priors make diversification look like alpha: an index (SPY, ACWI) is never
   held next to its constituents, QQQ only ~3%, and the book leans to the sectors
-  (`research_universe_broad.py`). A prior on *factor* or class Sharpe would not; open question.
+  (`research_universe_broad.py`). An equilibrium class prior fixes that but not the book's
+  concentration (eff N 4.3 either way) and loses in the test half (`research_class_prior.py`).
 - Lagged market-state signals (credit, breadth, VIX exits) help in slow bear markets, which
   trend already covers, and hurt in fast V-shaped reversals.
