@@ -100,6 +100,15 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   datasets (free; forward P/E, PEG, margins; each January; US from the late 1990s, global
   regions from ~2007) -- the first test, annual tilt. Yardeni's weekly sector and MSCI-country
   forward P/E (free, PDFs to scrape). Proper point-in-time I/B/E/S or MSCI (paid).
+- **Data check (2026-11-01):** Damodaran's archive (`pc/archives/pedataYY.xls`, US;
+  `peEuropeYY.xls` etc., regions) has a forward P/E column for the US every January
+  2004-2025 (22 snapshots; PEG 1999 and 2012-2025) and for Europe, Japan, emerging and global
+  2012-2025 (14). About 95-101 Damodaran industries, renamed around 2014, to map by hand
+  onto the nine SPDR sectors; its forward P/E is a simple average across firms (outliers:
+  Advertising 2025 73.7 against an aggregate P/E of 34.7), so a sector P/E needs industry
+  market caps from another of his files. Roughly point in time (published early January).
+  Enough for a coarse, low-power first test (~21 annual sector cross-sections); only a
+  clear result would justify Yardeni's weekly series or paid I/B/E/S.
 - **Draft:** sector prior ``SR_i = 0.30 + k * z_i``, ``z`` the cross-sectional z-score of
   forward earnings yield relative to each sector's own trailing 10-year mean (cheap against
   its own history, not just against peers), capped +/-2; PEG and a downside penalty (downside
