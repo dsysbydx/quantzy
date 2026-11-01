@@ -5,16 +5,30 @@ run it becomes a study in [README.md](README.md) and leaves this file (its row's
 links the two). Order within a section is priority. Designs here are drafts: the version
 fixed before a test goes in that study's docstring.
 
-What the book is now (2026-10-19): long-only mean-variance on 17 ETFs. Its Sharpe comes
-mostly from risk weighting across classes: the core is 0.80 correlated with the prior's own
-portfolio. On top of that sit trend (EMA-200 and EWMAC, 0.74-0.80 correlated, so one bet),
-VRP and dollar value (each 0.1-0.26 against everything), and two overlays: Treasury month-end
-(about 0 against everything) and the VIX hedge (-0.44 against the book).
+What the book is now (2026-11-01): long-only mean-variance on 17 ETFs, Sharpe 1.37 (train
+1.37 / test 1.38) with its overlays. Its Sharpe comes mostly from risk weighting across
+classes: the core is 0.80 correlated with the prior's own portfolio. On top of that sit trend
+(EMA-200 and EWMAC, 0.74-0.80 correlated, so one bet), VRP and dollar value (each 0.1-0.26
+against everything), and three overlays: Treasury month-end (about 0 against everything),
+pension rebalancing (+0.04 against the book) and the VIX hedge (-0.44 against the book).
 
 ## Next up
 
-Ranked 2026-10-31 by expected gain x odds x cost. The lessons below rule out more
-covariance tweaks (four studies), new long-only assets and leverage changes.
+Ranked 2026-11-01 by expected gain x odds x cost, after this run's lessons: a new mechanism
+or a real cost saving has paid; refining the existing tilts, more covariance work, new
+long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
+
+| Rank | # | Idea | Why this rank |
+|---|---|---|---|
+| 1 | 1 | Futures hybrid, step 2 | Cost, not alpha: ~50 bp/yr, ~+0.05 Sharpe, high odds. Blocked on the data choice (IBKR ~2y, or Databento 15y+). Also unlocks sizing the month-end overlays on margin. |
+| 2 | 13 | Forced-flow effects (auctions, reconstitution) | New. The only mechanism type that has paid lately; free daily data; one study each. |
+| 3 | 11 | Forward valuation tilt | Different information (analysts' expectations, not price); a coarse free test on Damodaran's annual data (~1 day of mapping). Modest prior: price-based value failed and sector priors are sensitive. |
+| 4 | 7 | Commodity carry, long/short | A different, well-documented premium, independent of the book. Needs futures curves: buy with #1's data. |
+| 5 | 6 | Cross-sectional seasonality | A calendar mechanism, free, independent of momentum in the literature. Low-medium odds. |
+| 6 | 5 | Relative momentum, long/short | Weaker now: trend's breadth paid ~0 since 2017 (#12) and relative momentum failed inside the book. |
+| 7 | 12 | Breadth trend sleeve, step 2 (futures) | Step 1 failed (Sharpe 0.13, ~0 since 2017). Only alongside #1 and #7 on the same data. |
+| 8 | 9 | Tail hedge on real options | Insurance, not alpha; paid options data. |
+| 9 | 10 | Low-beta vs high-beta sectors | Low: overlaps the book's risk weighting. |
 
 ### 1. Futures hybrid, step 2: tracking on real futures data
 - **Why:** `research_implementation_cost.py` (branch `implementation-cost`) puts a futures
@@ -26,65 +40,18 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - **Needs:** data. IBKR API (~2 years; exchange subscriptions needed to trade anyway) or
   Databento (15+ years of CME, CBOT, COMEX; free credit likely covers it).
 
-### 2. Implied vol in the risk model -- closed 2026-10-31
-- Sigma only (`research_implied_vol_risk.py`): better forecasts, worse book (1.16 vs 1.21).
-  Sigma and `mu` consistently (`research_implied_vol_mu.py`): 1.15. Implied-vol sizing cuts
-  exposure after selloffs, selling the premium the `vrp` alpha buys.
-
-### 3. VRP on more assets -- closed 2026-10-31
-- `research_vrp_multi.py`: Treasuries (MOVE), gold (GVZ) and oil (OVX) have no usable IC
-  (gold the wrong sign); the book falls to 1.16 against 1.21. VXEEM has no history on Yahoo.
-
-### 4. More calendar flows, and overlay sizing -- tested 2026-10-31
-- `research_month_end_flows.py`: IEF month-end passes but duplicates the TLT overlay
-  (corr 0.92); LQD fails the test half; quarter-ends are not special. Pension rebalancing:
-  the sign rule's gain needs the same-close signal (gone one day earlier), but the
-  month-to-date deviation predicts the window (t -4.0, every period).
-- Pension by magnitude (`research_month_end_followups.py`): passes (1.396 vs 1.340, overlay
-  t 2.96, robust to the signal's timing). **Adopted 2026-10-31** as the `pension_rebalance`
-  overlay at 0.25x (half the tested size: lumpy, fading), shorting SPY in the ETF account;
-  book 1.34 -> 1.37.
-- TLT / IEF split at the same risk: +0.003, no change; revisit IEF with futures.
-- Still open: the TLT overlay's size once futures margin replaces Reg T.
-
-### 5. Sector and country relative momentum, long/short
-- **Why:** relative sector momentum had the strongest IC we found (t 4.8) but could not be
-  used long-only; the gain is in shorting the losers. Industry and country momentum is
-  well documented (Moskowitz-Grinblatt 1999; Asness, Moskowitz and Pedersen 2013) and,
-  beta-hedged, should be close to independent of the book.
-- **Doubt:** `research_long_short` found relative momentum failing in every structure inside
-  the book; a separate beta-hedged sleeve at its own vol is a different test, but the prior
-  is weaker than the IC suggests.
-- **Draft:** 12-1 month return (also 6-1), ranked within sectors (9 SPDRs) and within ~15
-  country ETFs; long top third, short bottom third, beta-neutral to SPY on 1-year betas,
-  5% vol, monthly; 2 bp a trade plus 0.5%/yr borrow on shorts. Long check: 12 Fama-French
-  industries from 1927.
-- **Watch:** momentum crashes (2009, Nov 2020); overlap with the trend portfolio.
-- **Bar:** sleeve Sharpe > 0.3 since 2008; +0.02 to the book's full and test-half Sharpe.
-
-### 6. Cross-sectional seasonality
-- **Why:** sectors and countries that did well in a calendar month tend to repeat in that
-  month (Keloharju, Linnainmaa and Nyberg 2016); documented as independent of momentum.
-- **Draft:** on the universe of idea 5, rank by the average return in the same calendar month
-  over the past 10-20 years; long/short, beta-neutral, 5% vol. Nearly free once 5 is built.
-
-### 7. Commodity carry (futures-curve basis), long/short
-- **Why:** strong evidence (Gorton-Rouwenhorst; Koijen et al. 2018) and independent of the
-  book; our commodity tests used ETFs and trend, not carry.
-- **Needs:** futures curves. Pairs with buying futures data for idea 1.
-
-### 8. Universe: drop QQQ, or complete the sector set -- closed 2026-11-01
-- `research_universe_qqq.py`: no change. Without QQQ 1.208 vs 1.211; with XLC and XLRE in
-  2019-26, 1.062 vs 1.078. QQQ stays (free, and the MNQ futures leg).
-
-### 9. Tail hedge on real option prices
-- **Why:** `research_tail_hedge.py` priced SPX puts off the VIX and found the regime rule
-  within pricing error; real end-of-day option prices would settle it.
-- **Needs:** Cboe DataShop or ORATS.
-
-### 10. Low-beta versus high-beta sectors, beta-neutral
-- **Why:** betting against beta (Frazzini-Pedersen 2014). **Doubt:** it partly overlaps the
-  risk weighting the book already does.
+### 13. Other forced-flow effects: Treasury auction cycle, index reconstitution
+- **Why:** the one lasting gain in the 2026-10/11 run came from a new *mechanism*, a
+  forced flow (pension rebalancing), on top of the earlier one (Treasury month-end). Others
+  are documented and run on free daily data. The Treasury auction cycle: dealers absorb new
+  supply, so Treasuries cheapen in the days before an auction and recover after (Lou, Yan
+  and Zhang, 2013); auction dates are public (TreasuryDirect). Russell reconstitution: index
+  funds trade on the last Friday of June, with predictable pressure on small caps (IWM).
+- **Draft:** event windows around 10- and 30-year auctions in IEF / TLT (short before, long
+  after, or flat-then-long), and around reconstitution day in IWM; overlay-style, like the
+  month-end overlays; effect by period first (publication decay), then the book.
+- **Watch:** decay since publication; overlap with the month-end windows (auctions cluster
+  mid-month, so probably little).
 
 ### 11. Forward valuation tilt across sectors and regions (needs data)
 - **Why (the user's idea, 2026-11-01):** tilt toward cheap expected earnings with limited
@@ -117,6 +84,32 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - **Watch:** analyst optimism differs by sector; GICS changes (2018) shift sector P/Es with
   no change in value; restated or back-filled estimates leak the future.
 
+### 7. Commodity carry (futures-curve basis), long/short
+- **Why:** strong evidence (Gorton-Rouwenhorst; Koijen et al. 2018) and independent of the
+  book; our commodity tests used ETFs and trend, not carry.
+- **Needs:** futures curves. Pairs with buying futures data for idea 1.
+
+### 6. Cross-sectional seasonality
+- **Why:** sectors and countries that did well in a calendar month tend to repeat in that
+  month (Keloharju, Linnainmaa and Nyberg 2016); documented as independent of momentum.
+- **Draft:** on the universe of idea 5, rank by the average return in the same calendar month
+  over the past 10-20 years; long/short, beta-neutral, 5% vol. Nearly free once 5 is built.
+
+### 5. Sector and country relative momentum, long/short
+- **Why:** relative sector momentum had the strongest IC we found (t 4.8) but could not be
+  used long-only; the gain is in shorting the losers. Industry and country momentum is
+  well documented (Moskowitz-Grinblatt 1999; Asness, Moskowitz and Pedersen 2013) and,
+  beta-hedged, should be close to independent of the book.
+- **Doubt:** `research_long_short` found relative momentum failing in every structure inside
+  the book; a separate beta-hedged sleeve at its own vol is a different test, but the prior
+  is weaker than the IC suggests.
+- **Draft:** 12-1 month return (also 6-1), ranked within sectors (9 SPDRs) and within ~15
+  country ETFs; long top third, short bottom third, beta-neutral to SPY on 1-year betas,
+  5% vol, monthly; 2 bp a trade plus 0.5%/yr borrow on shorts. Long check: 12 Fama-French
+  industries from 1927.
+- **Watch:** momentum crashes (2009, Nov 2020); overlap with the trend portfolio.
+- **Bar:** sleeve Sharpe > 0.3 since 2008; +0.02 to the book's full and test-half Sharpe.
+
 ### 12. Breadth trend sleeve, long/short (the user's push for breadth, 2026-11-01)
 - **Why:** IR ~ IC x sqrt(breadth) applies to a strategy whose risk the signal drives, not to
   a small tilt (k ~0.05) in a long-only, prior-dominated book; adding assets there barely
@@ -138,11 +131,47 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   question, and step 1 says it is ~0; worth running only alongside ideas 1 and 7, on the
   same data, not on its own.
 
+### 9. Tail hedge on real option prices
+- **Why:** `research_tail_hedge.py` priced SPX puts off the VIX and found the regime rule
+  within pricing error; real end-of-day option prices would settle it.
+- **Needs:** Cboe DataShop or ORATS.
+
+### 10. Low-beta versus high-beta sectors, beta-neutral
+- **Why:** betting against beta (Frazzini-Pedersen 2014). **Doubt:** it partly overlaps the
+  risk weighting the book already does.
+
+## Tested and closed (2026-10/11)
+
+### 2. Implied vol in the risk model -- closed 2026-10-31
+- Sigma only (`research_implied_vol_risk.py`): better forecasts, worse book (1.16 vs 1.21).
+  Sigma and `mu` consistently (`research_implied_vol_mu.py`): 1.15. Implied-vol sizing cuts
+  exposure after selloffs, selling the premium the `vrp` alpha buys.
+
+### 3. VRP on more assets -- closed 2026-10-31
+- `research_vrp_multi.py`: Treasuries (MOVE), gold (GVZ) and oil (OVX) have no usable IC
+  (gold the wrong sign); the book falls to 1.16 against 1.21. VXEEM has no history on Yahoo.
+
+### 4. More calendar flows, and overlay sizing -- tested 2026-10-31
+- `research_month_end_flows.py`: IEF month-end passes but duplicates the TLT overlay
+  (corr 0.92); LQD fails the test half; quarter-ends are not special. Pension rebalancing:
+  the sign rule's gain needs the same-close signal (gone one day earlier), but the
+  month-to-date deviation predicts the window (t -4.0, every period).
+- Pension by magnitude (`research_month_end_followups.py`): passes (1.396 vs 1.340, overlay
+  t 2.96, robust to the signal's timing). **Adopted 2026-10-31** as the `pension_rebalance`
+  overlay at 0.25x (half the tested size: lumpy, fading), shorting SPY in the ETF account;
+  book 1.34 -> 1.37.
+- TLT / IEF split at the same risk: +0.003, no change; revisit IEF with futures.
+- Still open: the TLT overlay's size once futures margin replaces Reg T.
+
+### 8. Universe: drop QQQ, or complete the sector set -- closed 2026-11-01
+- `research_universe_qqq.py`: no change. Without QQQ 1.208 vs 1.211; with XLC and XLRE in
+  2019-26, 1.062 vs 1.078. QQQ stays (free, and the MNQ futures leg).
+
 ## Needs data first
 
 - **Put/call ratio** (a Fear & Greed component). Check Cboe data access first; the other two
   F&G parts we tested (credit, breadth) did not add to trend and VRP.
-- Ideas 1, 7 and 9 above also need data.
+- Ideas 1, 7, 9 and 12 (step 2) above also need data; 11 needs a day of data work.
 
 ## Portfolio decisions (not alphas)
 
