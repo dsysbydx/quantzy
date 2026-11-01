@@ -28,7 +28,7 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 | 5 | 15 | Options-expiration week | Dealer gamma hedging around the third Friday; free daily data, untested here. Medium. |
 | 6 | 7 | Commodity carry, long/short | A different, well-documented premium, independent of the book. Needs futures curves: buy with #1's data. |
 | 7 | 16 | Commodity index roll ("Goldman roll") | Index funds roll on business days 5-9 each month; front-run the calendar spread (Mou 2011). Needs front and second-month futures: buy with #1 / #7's data. |
-| 8 | 6 | Cross-sectional seasonality | A calendar mechanism, free, independent of momentum in the literature. Low-medium odds. |
+| — | 6 | ~~Cross-sectional seasonality~~ (country step failed) | A calendar mechanism, free, independent of momentum in the literature. Low-medium odds. |
 | 9 | 5 | Relative momentum, long/short | Weaker now: trend's breadth paid ~0 since 2017 (#12) and relative momentum failed inside the book. |
 | 10 | 12 | Breadth trend sleeve, step 2 (futures) | Step 1 failed (Sharpe 0.13, ~0 since 2017). Only alongside #1 and #7 on the same data. |
 | 11 | 9 | Tail hedge on real options | Insurance, not alpha; paid options data. |
@@ -124,11 +124,22 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   book; our commodity tests used ETFs and trend, not carry.
 - **Needs:** futures curves. Pairs with buying futures data for idea 1.
 
-### 6. Cross-sectional seasonality
-- **Why:** sectors and countries that did well in a calendar month tend to repeat in that
-  month (Keloharju, Linnainmaa and Nyberg 2016); documented as independent of momentum.
-- **Draft:** on the universe of idea 5, rank by the average return in the same calendar month
-  over the past 10-20 years; long/short, beta-neutral, 5% vol. Nearly free once 5 is built.
+### 6. Cross-sectional seasonality -- country step closed 2026-11-01
+- `research_country_seasonality.py`: generic same-calendar-month seasonality across 28 country
+  ETFs has IC -0.023 (t -1.6) and a losing sleeve (-0.82 Sharpe, heavy turnover). Sectors not
+  run; the country result makes them unlikely.
+
+### 17. Dividend-calendar effect across countries (the user's idea, 2026-11-01)
+- **Why:** the dividend month premium (Hartzmark and Solomon 2013): investors buy, or hold
+  off selling, ahead of an expected dividend. Markets whose dividends cluster (Thailand:
+  finals late Feb - early May, interims mid-Aug - early Sep; Japan: March and September record
+  dates; Taiwan: June-August; Europe: April-May; Australia: Feb-Mar and Aug-Sep) may do
+  better in the run-up. The months come from the mechanism, not from past returns.
+- **Draft (pending the user's check of the calendar):** excess return in the month before each
+  market's main ex-dividend season and its first month, against the market's other months;
+  pooled across markets, then Thailand alone (THD from 2008, low power); US, Canada and the
+  UK (spread dividends) as controls. Thai tax-fund buying before the December deadline as a
+  separate, pre-specified test.
 
 ### 5. Sector and country relative momentum, long/short
 - **Why:** relative sector momentum had the strongest IC we found (t 4.8) but could not be
