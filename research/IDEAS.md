@@ -129,17 +129,11 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   ETFs has IC -0.023 (t -1.6) and a losing sleeve (-0.82 Sharpe, heavy turnover). Sectors not
   run; the country result makes them unlikely.
 
-### 17. Dividend-calendar effect across countries (the user's idea, 2026-11-01)
-- **Why:** the dividend month premium (Hartzmark and Solomon 2013): investors buy, or hold
-  off selling, ahead of an expected dividend. Markets whose dividends cluster (Thailand:
-  finals late Feb - early May, interims mid-Aug - early Sep; Japan: March and September record
-  dates; Taiwan: June-August; Europe: April-May; Australia: Feb-Mar and Aug-Sep) may do
-  better in the run-up. The months come from the mechanism, not from past returns.
-- **Draft (pending the user's check of the calendar):** excess return in the month before each
-  market's main ex-dividend season and its first month, against the market's other months;
-  pooled across markets, then Thailand alone (THD from 2008, low power); US, Canada and the
-  UK (spread dividends) as controls. Thai tax-fund buying before the December deadline as a
-  separate, pre-specified test.
+### 17. Dividend-calendar effect across countries -- tested 2026-11-01
+- `research_dividend_calendar.py`: the run-up is real pooled (+52 bp a month, t 2.2, 12 of 16
+  markets; Japan t 2.8, Thailand t 1.4) but faded since 2008 and not tradeable as a sleeve
+  after costs (Sharpe +0.03). Usable only to time contributions or rebalancing at no extra
+  cost. Thai tax-fund buying (Nov-Dec) not visible relative to other markets.
 
 ### 5. Sector and country relative momentum, long/short
 - **Why:** relative sector momentum had the strongest IC we found (t 4.8) but could not be
