@@ -22,7 +22,7 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 | Rank | # | Idea | Why this rank |
 |---|---|---|---|
 | 1 | 1 | Futures hybrid, step 2 | Cost, not alpha: ~50 bp/yr, ~+0.05 Sharpe, high odds. Blocked on the data choice (IBKR ~2y, or Databento 15y+). Also unlocks sizing the month-end overlays on margin. |
-| 2 | 14 | FX month-end hedge rebalancing | New flow, the pension overlay's family: foreign holders reset dollar hedges at the month-end fix, sized by the month's US vs foreign equity move (Melvin and Prins 2015); free data. Must add beyond pension. |
+| — | 14 | ~~FX month-end hedge rebalancing~~ (closed: wrong sign at daily closes) | New flow, the pension overlay's family: foreign holders reset dollar hedges at the month-end fix, sized by the month's US vs foreign equity move (Melvin and Prins 2015); free data. Must add beyond pension. |
 | 3 | 13 | Forced-flow effects (auctions, reconstitution) | New. The only mechanism type that has paid lately; free daily data; one study each. |
 | 4 | 11 | Forward valuation tilt | Different information (analysts' expectations, not price); a coarse free test on Damodaran's annual data (~1 day of mapping). Modest prior: price-based value failed and sector priors are sensitive. |
 | 5 | 15 | Options-expiration week | Dealer gamma hedging around the third Friday; free daily data, untested here. Medium. |
@@ -65,18 +65,10 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 - **Still open:** Russell reconstitution (IWM, last Friday of June): ~25 events since 2000,
   low power.
 
-### 14. FX month-end hedge rebalancing
-- **Why:** foreign investors in US equities hedge their dollar exposure and reset the hedges
-  at the month-end London 4 pm fix. When US equities rallied in the month their dollar
-  exposure grew, so they sell dollars into month-end; the reverse after a fall. US investors
-  hedging foreign equities do the mirror trade, so the net flow follows US *minus* foreign
-  equity returns (Melvin and Prins 2015). The same mechanism family as the pension overlay.
-- **Draft:** over the last two trading days, ``-size * clip(z / 2)`` in UUP, ``z`` the SPY
-  minus EFA month-to-date return through the close before entry over its expected spread
-  (the pension overlay's construction); EUR/USD from 2003 as a longer check. Judged on top of
-  the saved book, which already holds the pension overlay.
-- **Watch:** overlap with pension (both read the month's equity move); the fix is at 11 am ET
-  on the last day, so daily closes also catch any reversal after it.
+### 14. FX month-end hedge rebalancing -- closed 2026-11-01
+- `research_fx_hedge_rebalance.py`: fails. At daily closes the dollar *strengthened* into
+  month-end after US equities led, before 2017 (t +1.6, +1.4); the overlay lost (t -2.1).
+  The effect lives in minutes around the 4 pm fix, which daily data cannot isolate.
 
 ### 15. Options-expiration week
 - **Why:** dealers hedge their option books, and around the monthly expiry (third Friday)
