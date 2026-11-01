@@ -83,6 +83,12 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     1.38) against 1.34, return 13.9% against 13.4%, vol 9.8%, max drawdown -15.3% (Apr-Sep
     2022) against -15.5%, Calmar 0.90 against 0.87. Sized at half the tested 0.5x: lumpy and
     fading since publication. It shorts SPY in about 61% of months.
+    With the Treasury auction overlays as well (2026-11-01, ``treasury_auction_10y`` and
+    ``_30y``, -0.125x IEF / TLT over the 5 trading days into each 10- / 30-year auction;
+    ``research_auction_preshort.py``): Sharpe 1.44 (train 1.41 / test 1.47) against 1.37,
+    return 14.1% against 13.5%, vol 9.8%, max drawdown -15.2% (Dec 2008 - Mar 2009), Calmar
+    0.96 against 0.90. Half the tested 0.25x: chosen after a failed full-cycle test, t at the
+    bar, 2002-08 the other way; revisit the size from live Sharpe.
     Sharpe is return over vol with no cash deduction.
 """
 
@@ -164,7 +170,8 @@ DOLLAR_INDEX = "DX-Y.NYB"
 VALUE_WINDOW, VALUE_Z_WINDOW = 1260, 2520
 
 #: Rule-based positions run on top of this book (``quantzy.strategies.OVERLAY_REGISTRY``).
-OVERLAYS = ("treasury_month_end", "vix_hedge", "pension_rebalance")
+OVERLAYS = ("treasury_month_end", "vix_hedge", "pension_rebalance", "treasury_auction_10y",
+            "treasury_auction_30y")
 #: The VIX hedge overlay's asset, loaded as a panel (it is not in the optimizer's universe).
 HEDGE = "VIXY"
 

@@ -98,7 +98,8 @@ class TestTreasuryMonthEnd:
     def test_job_adds_the_overlay(self, bundle):
         book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
         assert set(summary["overlays"]) == {"treasury_month_end", "vix_hedge",
-                                            "pension_rebalance"}
+                                            "pension_rebalance", "treasury_auction_10y",
+                                            "treasury_auction_30y"}
 
 
 def _vix_bundle(vix: list[float], vixy_ret: float = 0.0):
@@ -246,3 +247,73 @@ class TestPensionRebalance:
         assert book.loc[pr.ASSET, "target"] == pytest.approx(-pr.SIZE)
         assert book.loc[pr.ASSET, "order"]
         assert summary["gross_target"] >= book.drop(index=core.CASH)["target"].sum() + pr.SIZE
+
+
+class TestTreasuryAuction:
+    # A 10-year auction on Tue 2026-11-10: the window earns the returns of Wed 4 .. Tue 10
+    AUCTION = pd.Timestamp("2026-11-10")
+
+    def _set(self, ten=(), thirty=()):
+        from quantzy.strategies import treasury_auction as ta
+
+        ta.set_dates({"10-Year": list(ten), "30-Year": list(thirty)})
+
+    def test_pre_window_is_the_five_days_into_the_auction(self):
+        from quantzy.strategies import treasury_auction as ta
+        from quantzy.strategies.treasury_month_end import trading_days
+
+        days = trading_days("2026-10-26", "2026-11-20")
+        w = ta.in_pre_window(days, pd.DatetimeIndex([self.AUCTION]))
+        assert list(w[w].index.strftime("%m-%d")) == ["11-04", "11-05", "11-06", "11-09",
+                                                       "11-10"]
+
+    def test_target_shorts_from_the_entry_close_to_the_auction_close(self):
+        from quantzy.strategies import treasury_auction_10y as a10
+
+        self._set(ten=[self.AUCTION])
+        assert a10.target_after_close("2026-11-02") == 0.0  # next day Tue 3: outside
+        assert a10.target_after_close("2026-11-03") == -a10.SIZE  # entry close
+        assert a10.target_after_close("2026-11-09") == -a10.SIZE  # holds into the auction
+        assert a10.target_after_close("2026-11-10") == 0.0  # exits at the auction close
+
+    def test_terms_are_separate(self):
+        from quantzy.strategies import treasury_auction_10y as a10
+        from quantzy.strategies import treasury_auction_30y as a30
+
+        self._set(thirty=[self.AUCTION])
+        assert a10.target_after_close("2026-11-03") == 0.0
+        assert a30.target_after_close("2026-11-03") == -a30.SIZE
+
+    def test_stale_schedule_is_refused(self, monkeypatch):
+        from quantzy.strategies import treasury_auction as ta
+
+        ta.set_dates(None)
+        monkeypatch.setattr(ta, "schedule_end", lambda: pd.Timestamp("2026-11-15"))
+        with pytest.raises(RuntimeError, match="tentative auction schedule ends"):
+            ta.target_after_close("2026-11-03", "10-Year")
+
+    def test_backtest_earns_the_short_in_the_window(self):
+        from quantzy.data.bundle import DataBundle
+        from quantzy.strategies import treasury_auction_10y as a10
+        from quantzy.strategies.treasury_month_end import trading_days
+
+        idx = trading_days("2026-10-01", "2026-11-30")
+        px = pd.DataFrame({"IEF": 100 * 1.001 ** np.arange(len(idx)), "TBILL": 1.0}, index=idx)
+        self._set(ten=[self.AUCTION])
+        r = a10.backtest_returns(DataBundle.build(px))
+        inside = r.loc["2026-11-04":"2026-11-10"]
+        assert len(inside) == 5 and (inside < 0).all()  # short a rising ETF
+        assert (r.loc[:"2026-11-03"] == 0).all()
+        # Veterans Day (Wed 11) is an NYSE trading day: the exit cost lands on it
+        assert r.loc["2026-11-11"] < 0 and r.loc["2026-11-12":].eq(0).all()
+
+    def test_job_adds_the_short_to_the_core(self, bundle):
+        from quantzy.strategies import treasury_auction_10y as a10
+        from quantzy.strategies.treasury_month_end import trading_days
+
+        cal = trading_days(bundle.index[-1], bundle.index[-1] + pd.Timedelta(days=20))
+        auction = cal[cal > bundle.index[-1]][4]  # the job executes at cal[1], the entry close
+        self._set(ten=[auction])
+        book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
+        assert summary["overlays"]["treasury_auction_10y"] == pytest.approx(-a10.SIZE)
+        assert summary["overlays"]["treasury_auction_30y"] == 0.0

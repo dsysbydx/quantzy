@@ -135,3 +135,13 @@ def core_bundle():
     vixy = 20 * np.cumprod(1 + rng.normal(-0.002, 0.04, len(dates)))
     return DataBundle.build(px, vix=wide(vix), market=wide(spy), carry=carry,
                             dollar_value=dollar_value, vixy=wide(vixy))
+
+
+@pytest.fixture(autouse=True)
+def no_auction_network():
+    """Auction overlays read injected dates in tests, never the network (none by default)."""
+    from quantzy.strategies import treasury_auction
+
+    treasury_auction.set_dates({"10-Year": [], "30-Year": []})
+    yield
+    treasury_auction.set_dates(None)

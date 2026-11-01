@@ -20,9 +20,9 @@ Lifecycle of an idea:
 ``REGISTRY`` maps a strategy's name to its module, for jobs that pick one by name.
 
 An *overlay* is a rule-based position added on top of a saved strategy (no optimizer), such
-as :mod:`treasury_month_end`, :mod:`vix_hedge` and :mod:`pension_rebalance`. A strategy lists
-the overlays it runs with in ``OVERLAYS``; ``OVERLAY_REGISTRY`` maps their names to modules,
-each defining
+as :mod:`treasury_month_end`, :mod:`vix_hedge`, :mod:`pension_rebalance` and the Treasury
+auction overlays (:mod:`treasury_auction`). A strategy lists the overlays it runs with in
+``OVERLAYS``; ``OVERLAY_REGISTRY`` maps their names to modules, each defining
 
 * ``NAME``, ``ASSET`` (which may be outside the strategy's universe) and ``SIZE``;
 * ``asset_prices(bundle)`` -- the asset's closes, from the strategy's data;
@@ -35,7 +35,14 @@ from __future__ import annotations
 
 from types import ModuleType
 
-from quantzy.strategies import core_multiasset, pension_rebalance, treasury_month_end, vix_hedge
+from quantzy.strategies import (
+    core_multiasset,
+    pension_rebalance,
+    treasury_auction_10y,
+    treasury_auction_30y,
+    treasury_month_end,
+    vix_hedge,
+)
 
 REGISTRY: dict[str, ModuleType] = {
     core_multiasset.NAME: core_multiasset,
@@ -46,6 +53,8 @@ OVERLAY_REGISTRY: dict[str, ModuleType] = {
     treasury_month_end.NAME: treasury_month_end,
     vix_hedge.NAME: vix_hedge,
     pension_rebalance.NAME: pension_rebalance,
+    treasury_auction_10y.NAME: treasury_auction_10y,
+    treasury_auction_30y.NAME: treasury_auction_30y,
 }
 
 
@@ -63,4 +72,5 @@ def overlays(strategy: ModuleType) -> list[ModuleType]:
 
 
 __all__ = ["REGISTRY", "OVERLAY_REGISTRY", "get", "overlays", "core_multiasset",
-           "treasury_month_end", "vix_hedge", "pension_rebalance"]
+           "treasury_month_end", "vix_hedge", "pension_rebalance",
+           "treasury_auction_10y", "treasury_auction_30y"]

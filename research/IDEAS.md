@@ -5,12 +5,13 @@ run it becomes a study in [README.md](README.md) and leaves this file (its row's
 links the two). Order within a section is priority. Designs here are drafts: the version
 fixed before a test goes in that study's docstring.
 
-What the book is now (2026-11-01): long-only mean-variance on 17 ETFs, Sharpe 1.37 (train
-1.37 / test 1.38) with its overlays. Its Sharpe comes mostly from risk weighting across
+What the book is now (2026-11-01): long-only mean-variance on 17 ETFs, Sharpe 1.44 (train
+1.41 / test 1.47) with its overlays. Its Sharpe comes mostly from risk weighting across
 classes: the core is 0.80 correlated with the prior's own portfolio. On top of that sit trend
 (EMA-200 and EWMAC, 0.74-0.80 correlated, so one bet), VRP and dollar value (each 0.1-0.26
-against everything), and three overlays: Treasury month-end (about 0 against everything),
-pension rebalancing (+0.04 against the book) and the VIX hedge (-0.44 against the book).
+against everything), and four overlay rules: Treasury month-end (about 0 against
+everything), pension rebalancing (+0.04 against the book), the Treasury auction shorts
+(-0.11) and the VIX hedge (-0.44 against the book).
 
 ## Next up
 
@@ -57,7 +58,7 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   *concession before* auctions is significant since 2017 (IEF t -2.8, TLT t -2.4).
 - **Short-only follow-up passes** (`research_auction_preshort.py`): book 1.371 -> 1.489, overlay
   t 2.02, timing confirmed by a placebo; caveats: wrong sign in 2002-08, post-hoc, t at the
-  bar. A candidate fourth overlay, pending a decision on adoption and size.
+  bar. **Adopted 2026-11-01** as `treasury_auction_10y` / `_30y` at 0.125x (book 1.37 -> 1.44).
 - **Still open:** Russell reconstitution (IWM, last Friday of June): ~25 events since 2000,
   low power.
 
@@ -203,6 +204,9 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 
 ## Monitoring
 
+- **Treasury auction overlays review** (adopted 2026-11-01 at 0.125x, half the tested size):
+  revisit the size from live Sharpe; retire if the trailing three years turn negative or if
+  the tentative schedule stops being published. Refresh: the job refetches it weekly.
 - **Pension rebalancing review** (adopted 2026-10-31 at 0.25x): its Sharpe has fallen by
   period (0.91 / 0.77 / 0.35) since publication; retire it if the trailing three years turn
   negative.
