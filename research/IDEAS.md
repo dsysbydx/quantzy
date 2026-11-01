@@ -117,6 +117,22 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 - **Watch:** analyst optimism differs by sector; GICS changes (2018) shift sector P/Es with
   no change in value; restated or back-filled estimates leak the future.
 
+### 12. Breadth trend sleeve, long/short (the user's push for breadth, 2026-11-01)
+- **Why:** IR ~ IC x sqrt(breadth) applies to a strategy whose risk the signal drives, not to
+  a small tilt (k ~0.05) in a long-only, prior-dominated book; adding assets there barely
+  moved it (`research_trend_global`, `research_broad_universe`). The literature's breadth is
+  long/short trend across many *uncorrelated* markets at equal risk (Moskowitz, Ooi and
+  Pedersen 2012; Hurst, Ooi and Pedersen 2017) -- a sleeve, combined at the book level.
+  Expect a modest post-2009 Sharpe (trend's lost decade; `research_kmlm`: KMLM earned ~0
+  outside 2022, yet +0.03 to the book at a fixed 20% share).
+- **Step 1 (free):** ~40 ETFs across country equity, bonds, commodities, currencies and
+  real estate; EMA-200 and EWMAC 64/256 as in the book; vol-targeted per market, equal risk
+  per class, long/short, weekly; costs, short borrow, financing. Standalone Sharpe by period,
+  correlation with the book (also in its worst months), and the book plus the sleeve at
+  fixed risk shares.
+- **Step 2 (data):** the same on ~60-100 futures markets back to 1980 (Norgate, ~$30/month),
+  which also serves ideas 1 and 7.
+
 ## Needs data first
 
 - **Put/call ratio** (a Fear & Greed component). Check Cboe data access first; the other two
