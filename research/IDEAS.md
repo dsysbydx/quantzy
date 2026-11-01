@@ -73,11 +73,17 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
   book; our commodity tests used ETFs and trend, not carry.
 - **Needs:** futures curves. Pairs with buying futures data for idea 1.
 
-### 8. Universe cleanup
-- **Why:** the 17 overlap: five sector SPDRs explain 96.5% of QQQ's variance; EFA overlaps
-  EEM and XLI (`research_corr_factor.py`). Dropping near-duplicates may steady the
-  concentration swings.
-- **Doubt:** four covariance studies say conditioning is not what costs the book.
+### 8. Universe: drop QQQ, or complete the sector set (XLC, XLRE)
+- **Why:** the sector SPDRs explain 96.5% of QQQ's variance (`research_corr_factor.py`)
+  and the book holds ~3% of NAV in it. But the universe has only the nine original SPDRs:
+  no communication services (XLC: GOOGL, META, NFLX since the 2018 GICS change) and no real
+  estate (XLRE), so part of QQQ's role is the mega-cap communication names no other ETF
+  carries. QQQ is also the cleanest futures leg (MNQ) in the hybrid.
+- **Draft:** three universes, everything else fixed: as saved; without QQQ; without QQQ and
+  with XLC and XLRE (equity prior 0.30, trend and VRP like the other sectors). XLC starts
+  2018-06: a proxy before then (e.g. an XLK/XLY/telecom blend) or a 2019-26 comparison.
+- **Doubt:** four covariance studies say conditioning is not what costs the book; the
+  universe completeness is the new part.
 
 ### 9. Tail hedge on real option prices
 - **Why:** `research_tail_hedge.py` priced SPX puts off the VIX and found the regime rule
@@ -87,6 +93,28 @@ covariance tweaks (four studies), new long-only assets and leverage changes.
 ### 10. Low-beta versus high-beta sectors, beta-neutral
 - **Why:** betting against beta (Frazzini-Pedersen 2014). **Doubt:** it partly overlaps the
   risk weighting the book already does.
+
+### 11. Forward valuation tilt across sectors and regions (needs data)
+- **Why (the user's idea, 2026-11-01):** tilt toward cheap expected earnings with limited
+  downside, the way a fundamental investor does: forward earnings yield (1 / forward P/E)
+  and PEG, relative across the sectors and between US, developed ex-US (EFA) and emerging
+  (EEM). Forward measures use analysts' expectations, unlike what failed before.
+- **Prior evidence:** price-based value lowered Sharpe (`research_value`: CAPE ERP, sector
+  and regional reversal); CAPE forecasts only at 5-10 years (`research_shiller_valuation`);
+  the implied ERP lowered the book (`research_implied_erp`). And the sector priors are
+  sensitive: random errors of 0.10 cost a median -0.21 (`research_prior_sensitivity`), so a
+  noisy tilt does real damage. Modest prior.
+- **Data, point in time (the binding constraint):** Damodaran's annual industry and regional
+  datasets (free; forward P/E, PEG, margins; each January; US from the late 1990s, global
+  regions from ~2007) -- the first test, annual tilt. Yardeni's weekly sector and MSCI-country
+  forward P/E (free, PDFs to scrape). Proper point-in-time I/B/E/S or MSCI (paid).
+- **Draft:** sector prior ``SR_i = 0.30 + k * z_i``, ``z`` the cross-sectional z-score of
+  forward earnings yield relative to each sector's own trailing 10-year mean (cheap against
+  its own history, not just against peers), capped +/-2; PEG and a downside penalty (downside
+  beta, or analysts' earnings dispersion) as variants. IC on 12-month sector excess returns
+  first, then the book at a ``k`` set from the IC (Grinold), ``PORTFOLIO`` fixed.
+- **Watch:** analyst optimism differs by sector; GICS changes (2018) shift sector P/Es with
+  no change in value; restated or back-filled estimates leak the future.
 
 ## Needs data first
 
