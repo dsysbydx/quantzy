@@ -52,6 +52,12 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   month-end overlays; effect by period first (publication decay), then the book.
 - **Watch:** decay since publication; overlap with the month-end windows (auctions cluster
   mid-month, so probably little).
+- **Auction cycle tested 2026-11-01** (`research_auction_cycle.py`): fails. The recovery
+  after auctions is not reliable; the book falls to 1.361 at much higher vol. The
+  *concession before* auctions is significant since 2017 (IEF t -2.8, TLT t -2.4). Parked
+  follow-up: short IEF / TLT only into auctions, smaller (~0.25x), one candidate, t >= 2.
+- **Still open:** Russell reconstitution (IWM, last Friday of June): ~25 events since 2000,
+  low power.
 
 ### 11. Forward valuation tilt across sectors and regions (needs data)
 - **Why (the user's idea, 2026-11-01):** tilt toward cheap expected earnings with limited
