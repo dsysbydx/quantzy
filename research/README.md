@@ -54,6 +54,8 @@ the return-unit signals), NaN until each asset has warmed up. In order:
 
 Ideas not yet tested, open portfolio questions and lessons so far are in
 [IDEAS.md](IDEAS.md).
+A step back over all the studies, and what the framework may have cost them, is in
+[SYNTHESIS.md](SYNTHESIS.md).
 
 ## Index
 

@@ -15,12 +15,15 @@ everything), pension rebalancing (+0.04 against the book), the Treasury auction 
 
 ## Next up
 
-Ranked 2026-11-01 by expected gain x odds x cost, after this run's lessons: a new mechanism
+Rows A-C (2026-11-02, from [SYNTHESIS.md](SYNTHESIS.md)) come first; then ranked 2026-11-01 by expected gain x odds x cost, after this run's lessons: a new mechanism
 or a real cost saving has paid; refining the existing tilts, more covariance work, new
 long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 
 | Rank | # | Idea | Why this rank |
 |---|---|---|---|
+| A | 19 | Multi-sleeve harness | The framework fix behind most "strong signal, no gain" results ([SYNTHESIS.md](SYNTHESIS.md)); enables 20 and 21. |
+| B | 20 | Combined cross-sectional sleeve | Several seen-but-unused signals together, index-hedged, buffered; strict bar. |
+| C | 21 | Fast relative sector momentum | Quick probe: the strongest IC found, at its own horizon. |
 | 1 | 1 | Futures hybrid, step 2 | Cost, not alpha: ~50 bp/yr, ~+0.05 Sharpe, high odds. Blocked on the data choice (IBKR ~2y, or Databento 15y+). Also unlocks sizing the month-end overlays on margin. |
 | — | 14 | ~~FX month-end hedge rebalancing~~ (closed: wrong sign at daily closes) | New flow, the pension overlay's family: foreign holders reset dollar hedges at the month-end fix, sized by the month's US vs foreign equity move (Melvin and Prins 2015); free data. Must add beyond pension. |
 | 3 | 13 | Forced-flow effects (auctions, reconstitution) | New. The only mechanism type that has paid lately; free daily data; one study each. |
@@ -137,6 +140,29 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   month) but neither a SPY overlay (1.305) nor a seasonal equity prior
   (`research_seasonal_prior.py`: 1.406, t -0.07) beats the saved book (1.443): the book's
   equity is mostly US, where it has faded, and the long-only caps absorb the summer cut.
+
+### 19. A multi-sleeve harness (from [SYNTHESIS.md](SYNTHESIS.md), 2026-11-02)
+- **Why:** every gain since the first week came from overlays outside the optimizer; the
+  single long-only, capped, slow book cannot use fast, relative or short signals, or assets
+  without a long premium. Build the standard structure: core book plus independent sleeves,
+  each with its own horizon, cost model, turnover control and hedge leg, combined by risk
+  budget.
+- **Draft:** a backtest harness that takes the core's returns, the overlays and N sleeve
+  return streams, sizes sleeves to fixed risk budgets (causal vol), and reports the combined
+  book; a sleeve interface (signals -> target weights -> buffered trades -> net returns).
+
+### 20. Combined cross-sectional country / sector sleeve (needs 19)
+- **Why:** signals that failed alone may pass together: independent IRs add, trades partly
+  net. Relative sector momentum (1-day IC t 4.7), country 21-day reversal (net Sharpe 0.34),
+  the dividend calendar (pooled t 2.2) and country Halloween timing (27 of 28 markets).
+- **Draft:** equal-risk combination fixed in advance; short leg as one liquid hedge
+  (EFA / EEM / ACWI) rather than thin ETFs; trade buffer. One candidate, strict bar (each
+  signal has been seen): t >= 2 on the sleeve and +0.02 to the book in both halves.
+
+### 21. Relative sector momentum as a fast sleeve (a quick probe)
+- **Why:** the strongest IC found (1-day t 4.7, 21-day t 0.9) was only ever tested inside the
+  slow book. At its own horizon (hold ~5 days), sector SPDRs at 2 bp, dollar-neutral: does
+  it survive costs?
 
 ### 5. Sector and country relative momentum, long/short
 - **Why:** relative sector momentum had the strongest IC we found (t 4.8) but could not be
