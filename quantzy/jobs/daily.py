@@ -155,13 +155,15 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
     funding = holdings is None or not len(holdings)
     overlay_now = pd.Series(0.0, index=w.index)
     overlay_next = pd.Series(0.0, index=w.index)
+    per_overlay: dict[str, float] = {}  # each overlay's own weight (several may share an asset)
     for ov in ovs:
         if ov.ASSET in extra:
             now = float(w[ov.ASSET])
         else:
             now = 0.0 if funding else ov.target_after_close(asof, bundle)
         overlay_now[ov.ASSET] += now
-        overlay_next[ov.ASSET] += ov.target_after_close(execution_day, bundle, now)
+        per_overlay[ov.NAME] = float(ov.target_after_close(execution_day, bundle, now))
+        overlay_next[ov.ASSET] += per_overlay[ov.NAME]
     w[cash] = 1.0 - w.drop(cash).sum()
     w_total = w.copy()
     w = (w - overlay_now).clip(lower=0.0).loc[universe]
@@ -189,7 +191,7 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
         "cash_target": float(target[cash]),
         "turnover": float(0.5 * (target - w).abs().sum()),
         "execution_day": execution_day.date(),
-        "overlays": {ov.NAME: float(overlay_next[ov.ASSET]) for ov in ovs},
+        "overlays": per_overlay,
         "estimated_cost": float(strategy.optimizer.execution_cost.estimate(
             (target - w).to_numpy(), tickers=list(w.index))
             if strategy.optimizer.execution_cost is not None

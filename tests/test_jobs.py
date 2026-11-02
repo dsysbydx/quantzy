@@ -317,3 +317,13 @@ class TestTreasuryAuction:
         book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
         assert summary["overlays"]["treasury_auction_10y"] == pytest.approx(-a10.SIZE)
         assert summary["overlays"]["treasury_auction_30y"] == 0.0
+
+    def test_summary_attributes_each_overlay_on_a_shared_asset(self, bundle, monkeypatch):
+        """TLT carries the month-end overlay and the 30-year auction overlay: the summary must
+        report each one's own weight, not their sum under both names."""
+        from quantzy.strategies import treasury_month_end as tme
+
+        monkeypatch.setattr(tme, "target_after_close", lambda day, bundle=None, current=0.0: 0.5)
+        book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
+        assert summary["overlays"]["treasury_month_end"] == 0.5
+        assert summary["overlays"]["treasury_auction_30y"] == 0.0
