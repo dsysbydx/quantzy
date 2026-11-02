@@ -25,7 +25,7 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 | — | 14 | ~~FX month-end hedge rebalancing~~ (closed: wrong sign at daily closes) | New flow, the pension overlay's family: foreign holders reset dollar hedges at the month-end fix, sized by the month's US vs foreign equity move (Melvin and Prins 2015); free data. Must add beyond pension. |
 | 3 | 13 | Forced-flow effects (auctions, reconstitution) | New. The only mechanism type that has paid lately; free daily data; one study each. |
 | 4 | 11 | Forward valuation tilt | Different information (analysts' expectations, not price); a coarse free test on Damodaran's annual data (~1 day of mapping). Modest prior: price-based value failed and sector priors are sensitive. |
-| 5 | 15 | Options-expiration week | Dealer gamma hedging around the third Friday; free daily data, untested here. Medium. |
+| — | 15 | ~~Options-expiration week~~ (closed: decayed) | Dealer gamma hedging around the third Friday; free daily data, untested here. Medium. |
 | 6 | 7 | Commodity carry, long/short | A different, well-documented premium, independent of the book. Needs futures curves: buy with #1's data. |
 | 7 | 16 | Commodity index roll ("Goldman roll") | Index funds roll on business days 5-9 each month; front-run the calendar spread (Mou 2011). Needs front and second-month futures: buy with #1 / #7's data. |
 | — | 6 | ~~Cross-sectional seasonality~~ (country step failed) | A calendar mechanism, free, independent of momentum in the literature. Low-medium odds. |
@@ -70,12 +70,9 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   month-end after US equities led, before 2017 (t +1.6, +1.4); the overlay lost (t -2.1).
   The effect lives in minutes around the 4 pm fix, which daily data cannot isolate.
 
-### 15. Options-expiration week
-- **Why:** dealers hedge their option books, and around the monthly expiry (third Friday)
-  that hedging has been linked to positive equity returns in expiration week and weaker ones
-  the week after. Free daily data; the dates follow a rule.
-- **Draft:** SPY excess return in expiration week against other weeks, by period; an overlay
-  long in expiration week if it holds.
+### 15. Options-expiration week -- closed 2026-11-02
+- `research_opex_week.py`: positive before 2000 (t 1.5), flat in 2000-12, below other days
+  since 2013 (t -1.0) as weekly and 0DTE options spread hedging; the overlay hurts the book.
 
 ### 16. Commodity index roll front-running ("Goldman roll")
 - **Why:** the large commodity indexes roll from the front contract to the next on business
