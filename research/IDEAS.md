@@ -135,6 +135,15 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   after costs (Sharpe +0.03). Usable only to time contributions or rebalancing at no extra
   cost. Thai tax-fund buying (Nov-Dec) not visible relative to other markets.
 
+### 18. Seasonal equity tilt (Halloween), done the right way (follow-up, 2026-11-02)
+- **Why:** `research_halloween.py` found Nov-Apr beating May-Oct in 27 of 28 country markets
+  (+134 bp a month pooled, +127 since 2008) but fading in the US (t 0.7 since 2008), and a
+  raw +/-0.25x SPY overlay hurt the book (long into the 2008-09 crash).
+- **Draft:** (a) the seasonal tilt on EFA / EEM, where the effect lives; (b) through the
+  optimizer: the equity Sharpe prior up in Nov-Apr and down in May-Oct (e.g. 0.30 +/- 0.05),
+  so the risk model and trend still cut equities in a crash. Shaped by the first result:
+  one pre-specified candidate, the stricter bar (t >= 2 on the difference).
+
 ### 5. Sector and country relative momentum, long/short
 - **Why:** relative sector momentum had the strongest IC we found (t 4.8) but could not be
   used long-only; the gain is in shorting the losers. Industry and country momentum is
