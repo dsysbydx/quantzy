@@ -20,7 +20,7 @@ own trading, never competing inside the optimizer. The book went from 1.27 to 1.
 
 | Signal | Strength | Why it was dropped | The signal or the framework? |
 |---|---|---|---|
-| Relative sector momentum (`research_sector_priors`, `research_long_short`) | 1-day IC t 4.7, the strongest found | its edge lasts days (21-day t 0.9); the book trades ~once a year (cost band 5 bp x 48) | framework: horizon |
+| Relative sector momentum (`research_sector_priors`, `research_long_short`) | 1-day IC t 4.7, the strongest found | **since shown mostly an artifact** (`research_fast_sleeves`): the IC sits on calm days and loses on high-dispersion days; payoff t 0.6, a dollar-neutral sleeve earns ~0 even free | the signal, measured wrongly |
 | Country 21-day reversal, long/short (`research_short_reversal`, `research_reversal_sleeves`) | net Sharpe 0.34, corr +0.04 | weak since 2017; shorting ~8 thin country ETFs | both |
 | Dividend-calendar run-up (`research_dividend_calendar`) | pooled t 2.2, 12 of 16 markets | 1.8x monthly turnover in country ETFs took the edge | framework: execution |
 | Halloween across countries (`research_halloween`, `research_seasonal_prior`) | 27 of 28 markets, +134 bp a month | the book is US equity, where it has faded; the caps absorbed the summer cut | framework: vehicle |
@@ -54,6 +54,11 @@ own trading, never competing inside the optimizer. The book went from 1.27 to 1.
 Also standing: covariance changes do not help this universe (five studies; its ill-conditioning
 is overlap, not noise); refining existing small tilts is worth a few bp; published calendar
 effects decay (turn of month, pre-FOMC, options expiration, Halloween in the US, FX hedges).
+
+**A fifth, found after (`research_fast_sleeves`): the IC itself can mislead.** An equal-weight
+average of daily ICs counts a calm day like a wild one; a portfolio's P&L weights days by
+dispersion. Relative momentum's t 4.7 became payoff t 0.6. Screen on the payoff-weighted IC
+(the implied portfolio's return), and re-check the other "strong IC" entries above that way.
 
 ## 4. Breadth and the small universe
 

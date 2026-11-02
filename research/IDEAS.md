@@ -23,7 +23,7 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 |---|---|---|---|
 | A | 19 | Multi-sleeve harness | The framework fix behind most "strong signal, no gain" results ([SYNTHESIS.md](SYNTHESIS.md)); enables 20 and 21. |
 | B | 20 | Combined cross-sectional sleeve | Several seen-but-unused signals together, index-hedged, buffered; strict bar. |
-| C | 21 | Fast relative sector momentum | Quick probe: the strongest IC found, at its own horizon. |
+| — | 21 | ~~Fast sleeves~~ (failed; momentum's IC an artifact: screen on payoff-weighted IC) |
 | 1 | 1 | Futures hybrid, step 2 | Cost, not alpha: ~50 bp/yr, ~+0.05 Sharpe, high odds. Blocked on the data choice (IBKR ~2y, or Databento 15y+). Also unlocks sizing the month-end overlays on margin. |
 | — | 14 | ~~FX month-end hedge rebalancing~~ (closed: wrong sign at daily closes) | New flow, the pension overlay's family: foreign holders reset dollar hedges at the month-end fix, sized by the month's US vs foreign equity move (Melvin and Prins 2015); free data. Must add beyond pension. |
 | 3 | 13 | Forced-flow effects (auctions, reconstitution) | New. The only mechanism type that has paid lately; free daily data; one study each. |
@@ -36,6 +36,135 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 | 10 | 12 | Breadth trend sleeve, step 2 (futures) | Step 1 failed (Sharpe 0.13, ~0 since 2017). Only alongside #1 and #7 on the same data. |
 | 11 | 9 | Tail hedge on real options | Insurance, not alpha; paid options data. |
 | 12 | 10 | Low-beta vs high-beta sectors | Low: overlaps the book's risk weighting. |
+
+### 1. Futures hybrid, step 2: tracking on real futures data
+- **Why:** `research_implementation_cost.py` (branch `implementation-cost`) puts a futures
+  hybrid at ~50 bp/yr over US ETFs at IBKR for a Thai or Singapore holder (+0.05 Sharpe),
+  from withholding, borrowing and fees; a cost, not an alpha, so the odds are high.
+- **Draft:** per contract, excess return over T-bills against the ETF's: tracking error,
+  implied financing spread, DV01 ratio for ZN/IEF and ZB/TLT. Then re-run step 1 with the
+  measured spreads.
+- **Needs:** data. IBKR API (~2 years; exchange subscriptions needed to trade anyway) or
+  Databento (15+ years of CME, CBOT, COMEX; free credit likely covers it).
+
+### 13. Other forced-flow effects: Treasury auction cycle, index reconstitution
+- **Why:** the one lasting gain in the 2026-10/11 run came from a new *mechanism*, a
+  forced flow (pension rebalancing), on top of the earlier one (Treasury month-end). Others
+  are documented and run on free daily data. The Treasury auction cycle: dealers absorb new
+  supply, so Treasuries cheapen in the days before an auction and recover after (Lou, Yan
+  and Zhang, 2013); auction dates are public (TreasuryDirect). Russell reconstitution: index
+  funds trade on the last Friday of June, with predictable pressure on small caps (IWM).
+- **Draft:** event windows around 10- and 30-year auctions in IEF / TLT (short before, long
+  after, or flat-then-long), and around reconstitution day in IWM; overlay-style, like the
+  month-end overlays; effect by period first (publication decay), then the book.
+- **Watch:** decay since publication; overlap with the month-end windows (auctions cluster
+  mid-month, so probably little).
+- **Auction cycle tested 2026-11-01** (`research_auction_cycle.py`): fails. The recovery
+  after auctions is not reliable; the book falls to 1.361 at much higher vol. The
+  *concession before* auctions is significant since 2017 (IEF t -2.8, TLT t -2.4).
+- **Short-only follow-up passes** (`research_auction_preshort.py`): book 1.371 -> 1.489, overlay
+  t 2.02, timing confirmed by a placebo; caveats: wrong sign in 2002-08, post-hoc, t at the
+  bar. **Adopted 2026-11-01** as `treasury_auction_10y` / `_30y` at 0.125x (book 1.37 -> 1.44).
+- **Still open:** Russell reconstitution (IWM, last Friday of June): ~25 events since 2000,
+  low power.
+
+### 14. FX month-end hedge rebalancing -- closed 2026-11-01
+- `research_fx_hedge_rebalance.py`: fails. At daily closes the dollar *strengthened* into
+  month-end after US equities led, before 2017 (t +1.6, +1.4); the overlay lost (t -2.1).
+  The effect lives in minutes around the 4 pm fix, which daily data cannot isolate.
+
+### 15. Options-expiration week -- closed 2026-11-02
+- `research_opex_week.py`: positive before 2000 (t 1.5), flat in 2000-12, below other days
+  since 2013 (t -1.0) as weekly and 0DTE options spread hedging; the overlay hurts the book.
+
+### 16. Commodity index roll front-running ("Goldman roll")
+- **Why:** the large commodity indexes roll from the front contract to the next on business
+  days 5-9 each month, a predictable flow that cheapens the front against the next (Mou
+  2011). Sell the spread ahead of the roll window.
+- **Needs:** front- and second-month futures prices (with ideas 1 and 7's data).
+
+### Lower priority flow ideas (2026-11-01)
+- Leveraged-ETF rebalancing into the close (needs intraday data; the daily reversal is the
+  known short-term reversal); vol-target and risk-parity deleveraging after vol spikes (hard
+  to separate from crash and rebound dynamics); turn of the year in small caps (decayed).
+
+### 11. Forward valuation tilt across sectors and regions (needs data)
+- **Why (the user's idea, 2026-11-01):** tilt toward cheap expected earnings with limited
+  downside, the way a fundamental investor does: forward earnings yield (1 / forward P/E)
+  and PEG, relative across the sectors and between US, developed ex-US (EFA) and emerging
+  (EEM). Forward measures use analysts' expectations, unlike what failed before.
+- **Prior evidence:** price-based value lowered Sharpe (`research_value`: CAPE ERP, sector
+  and regional reversal); CAPE forecasts only at 5-10 years (`research_shiller_valuation`);
+  the implied ERP lowered the book (`research_implied_erp`). And the sector priors are
+  sensitive: random errors of 0.10 cost a median -0.21 (`research_prior_sensitivity`), so a
+  noisy tilt does real damage. Modest prior.
+- **Data, point in time (the binding constraint):** Damodaran's annual industry and regional
+  datasets (free; forward P/E, PEG, margins; each January; US from the late 1990s, global
+  regions from ~2007) -- the first test, annual tilt. Yardeni's weekly sector and MSCI-country
+  forward P/E (free, PDFs to scrape). Proper point-in-time I/B/E/S or MSCI (paid).
+- **Data check (2026-11-01):** Damodaran's archive (`pc/archives/pedataYY.xls`, US;
+  `peEuropeYY.xls` etc., regions) has a forward P/E column for the US every January
+  2004-2025 (22 snapshots; PEG 1999 and 2012-2025) and for Europe, Japan, emerging and global
+  2012-2025 (14). About 95-101 Damodaran industries, renamed around 2014, to map by hand
+  onto the nine SPDR sectors; its forward P/E is a simple average across firms (outliers:
+  Advertising 2025 73.7 against an aggregate P/E of 34.7), so a sector P/E needs industry
+  market caps from another of his files. Roughly point in time (published early January).
+  Enough for a coarse, low-power first test (~21 annual sector cross-sections); only a
+  clear result would justify Yardeni's weekly series or paid I/B/E/S.
+- **Draft:** sector prior ``SR_i = 0.30 + k * z_i``, ``z`` the cross-sectional z-score of
+  forward earnings yield relative to each sector's own trailing 10-year mean (cheap against
+  its own history, not just against peers), capped +/-2; PEG and a downside penalty (downside
+  beta, or analysts' earnings dispersion) as variants. IC on 12-month sector excess returns
+  first, then the book at a ``k`` set from the IC (Grinold), ``PORTFOLIO`` fixed.
+- **Watch:** analyst optimism differs by sector; GICS changes (2018) shift sector P/Es with
+  no change in value; restated or back-filled estimates leak the future.
+
+### 7. Commodity carry (futures-curve basis), long/short
+- **Why:** strong evidence (Gorton-Rouwenhorst; Koijen et al. 2018) and independent of the
+  book; our commodity tests used ETFs and trend, not carry.
+- **Needs:** futures curves. Pairs with buying futures data for idea 1.
+
+### 6. Cross-sectional seasonality -- country step closed 2026-11-01
+- `research_country_seasonality.py`: generic same-calendar-month seasonality across 28 country
+  ETFs has IC -0.023 (t -1.6) and a losing sleeve (-0.82 Sharpe, heavy turnover). Sectors not
+  run; the country result makes them unlikely.
+
+### 17. Dividend-calendar effect across countries -- tested 2026-11-01
+- `research_dividend_calendar.py`: the run-up is real pooled (+52 bp a month, t 2.2, 12 of 16
+  markets; Japan t 2.8, Thailand t 1.4) but faded since 2008 and not tradeable as a sleeve
+  after costs (Sharpe +0.03). Usable only to time contributions or rebalancing at no extra
+  cost. Thai tax-fund buying (Nov-Dec) not visible relative to other markets.
+
+### 18. Seasonal equity tilt (Halloween) -- closed 2026-11-02
+- The effect is real across countries (`research_halloween.py`: 27 of 28 markets, +134 bp a
+  month) but neither a SPY overlay (1.305) nor a seasonal equity prior
+  (`research_seasonal_prior.py`: 1.406, t -0.07) beats the saved book (1.443): the book's
+  equity is mostly US, where it has faded, and the long-only caps absorb the summer cut.
+
+### 19. A multi-sleeve harness (from [SYNTHESIS.md](SYNTHESIS.md), 2026-11-02)
+- **Why:** every gain since the first week came from overlays outside the optimizer; the
+  single long-only, capped, slow book cannot use fast, relative or short signals, or assets
+  without a long premium. Build the standard structure: core book plus independent sleeves,
+  each with its own horizon, cost model, turnover control and hedge leg, combined by risk
+  budget.
+- **Draft:** a backtest harness that takes the core's returns, the overlays and N sleeve
+  return streams, sizes sleeves to fixed risk budgets (causal vol), and reports the combined
+  book; a sleeve interface (signals -> target weights -> buffered trades -> net returns).
+
+### 20. Combined cross-sectional country / sector sleeve (needs 19)
+- **Why:** signals that failed alone may pass together: independent IRs add, trades partly
+  net. Relative sector momentum (1-day IC t 4.7), country 21-day reversal (net Sharpe 0.34),
+  the dividend calendar (pooled t 2.2) and country Halloween timing (27 of 28 markets).
+- **Draft:** equal-risk combination fixed in advance; short leg as one liquid hedge
+  (EFA / EEM / ACWI) rather than thin ETFs; trade buffer. One candidate, strict bar (each
+  signal has been seen): t >= 2 on the sleeve and +0.02 to the book in both halves.
+
+### 21. Fast sleeves -- tested 2026-11-02
+- `research_fast_sleeves.py`: relative momentum, sector reversal and commodity short-term
+  momentum as separate sleeves all fail (Sharpe -0.06 to +0.08 since 2008). Relative
+  momentum's IC is an equal-weighting artifact (payoff t 0.6); vol-managing it does not help.
+- **New screening rule:** payoff-weighted IC, not the mean of daily ICs. Idea 20 (combined
+  sleeve) should first re-check each input that way.
 
 ### 1. Futures hybrid, step 2: tracking on real futures data
 - **Why:** `research_implementation_cost.py` (branch `implementation-cost`) puts a futures
@@ -306,6 +435,9 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 - The 1-day IC can fail both ways: the equity VRP's is ~0 since 2017, yet it added +0.048
   Sharpe (t 2.1) there; its edge is at weeks. Judge a tilt on the horizon it is held for
   and on the book (`research_vrp_review.py`).
+- Screen signals on the payoff-weighted IC (the implied portfolio's return), not the mean of
+  daily ICs: relative sector momentum's daily IC t 4.7 was mostly calm days, payoff t 0.6
+  (`research_fast_sleeves.py`).
 - No crowd pushes through the 200-day line: SMA crosses follow big moves and reverse, and
   the drop-off "peek" is ~0.1% a day (`research_sma_frontrun.py`).
 - Per-asset Sharpe priors make diversification look like alpha: an index (SPY, ACWI) is never
