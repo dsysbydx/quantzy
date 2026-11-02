@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantzy.research import ic_decay, ic_summary, information_coefficient
+from quantzy.research import factor_return, ic_decay, ic_summary, information_coefficient
 from quantzy.returns import forward_returns
 from quantzy.signals import Momentum
 
@@ -174,3 +174,32 @@ class TestNeweyWest:
         e = np.random.default_rng(1).normal(size=5000)
         x = pd.Series(np.convolve(e, np.ones(20) / 20, mode="same") + 0.02)
         assert abs(newey_west_t(x, lags=40)) < abs(newey_west_t(x, lags=0))
+
+
+class TestFactorReturn:
+    def test_a_perfect_signal_earns_the_dispersion(self, panel):
+        fwd = forward_returns(panel, horizon=1)
+        fr = factor_return(fwd, panel, horizon=1, min_names=3, rank=False)
+        z = fwd.sub(fwd.mean(axis=1), axis=0)
+        expected = (z * fwd).sum(axis=1) / (z**2).sum(axis=1)
+        np.testing.assert_allclose(fr.dropna(), expected.loc[fr.dropna().index], rtol=1e-9)
+        assert (fr.dropna() > 0).all()
+
+    def test_ic_and_factor_return_part_when_the_edge_is_on_calm_days(self):
+        """Right on calm days, wrong on wild ones: the mean IC is positive, the payoff is not."""
+        rng = np.random.default_rng(0)
+        idx = pd.bdate_range("2020-01-01", periods=400)
+        score = pd.DataFrame(rng.normal(size=(400, 6)), index=idx)
+        wild = pd.Series(np.arange(400) % 5 == 0, index=idx)  # one day in five
+        noise = rng.normal(size=(400, 6)) * 0.002
+        beta = np.where(wild.to_numpy()[:, None], -0.02, 0.002)  # per day, all assets
+        ret = pd.DataFrame(beta * score.to_numpy() + noise, index=idx)
+        prices = 100 * (1 + ret).cumprod().shift(1).fillna(1.0)  # row t+1 / row t = 1 + ret[t]
+        ic = information_coefficient(score, prices, horizon=1, method="pearson", min_names=3)
+        fr = factor_return(score, prices, horizon=1, min_names=3, rank=False)
+        assert ic.mean() > 0.3  # right on 4 days in 5
+        assert fr.mean() < 0  # the wild day's loss is ten times the calm days' gains
+
+    def test_rejects_a_threshold_above_the_universe(self, panel):
+        with pytest.raises(ValueError, match="exceeds"):
+            factor_return(panel, panel, min_names=50)

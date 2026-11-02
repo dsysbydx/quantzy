@@ -16,6 +16,7 @@ from quantzy.research.distribution import (
 from quantzy.research.ic import (
     ICSummary,
     chunk_folds,
+    factor_return,
     ic_decay,
     ic_summary,
     information_coefficient,
@@ -39,6 +40,7 @@ from quantzy.research.volfit import (
 
 __all__ = [
     "information_coefficient",
+    "factor_return",
     "ic_summary",
     "ic_decay",
     "ICSummary",

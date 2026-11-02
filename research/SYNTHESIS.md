@@ -59,6 +59,10 @@ effects decay (turn of month, pre-FOMC, options expiration, Halloween in the US,
 average of daily ICs counts a calm day like a wild one; a portfolio's P&L weights days by
 dispersion. Relative momentum's t 4.7 became payoff t 0.6. Screen on the payoff-weighted IC
 (the implied portfolio's return), and re-check the other "strong IC" entries above that way.
+Done (`research_ic_rescreen`): 12-1 momentum is an artifact in sectors and countries alike; 5-day
+reversal is real but gone since 2017; 21-day country reversal has nothing. The time-series IC
+behind the adopted alphas is not affected. So section 5's first two steps have no inputs for
+now; futures data (ideas 1, 7, 16) and the valuation tilt (11) come first.
 
 ## 4. Breadth and the small universe
 

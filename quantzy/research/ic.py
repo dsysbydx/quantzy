@@ -51,6 +51,50 @@ def information_coefficient(
     return _rowwise_corr(scores, fwd, method=method, min_names=min_names)
 
 
+def factor_return(
+    scores: pd.DataFrame,
+    prices: pd.DataFrame,
+    horizon: int = 1,
+    min_names: int = 5,
+    rank: bool = True,
+) -> pd.Series:
+    """Per-date Fama-MacBeth factor return: what the score's portfolio earns.
+
+    Each date, the forward return is regressed across assets on the standardized score; the
+    slope is the return of a zero-cost portfolio with weights ``z / sum(z^2)`` -- one unit of
+    exposure to the score. Its mean, with :func:`newey_west_t`, is the payoff check that
+    belongs next to :func:`information_coefficient`.
+
+    Why both: the IC is a correlation, so each date is divided by that date's *realized*
+    cross-sectional dispersion of returns -- which no trader knows in advance. A score that
+    ranks well on calm days and badly on wild ones has a strong mean IC and no payoff
+    (``research/research_fast_sleeves.py``: relative sector momentum, IC t 3.6, factor return
+    t 0.6). The factor return weights each date by what is at stake that day.
+
+    Args:
+        scores: Score panel, already lagged so row ``t`` is tradeable at ``t``.
+        prices: Price panel covering the same dates.
+        horizon: Forward-return horizon in rows.
+        min_names: Dates with fewer paired observations return NaN.
+        rank: Standardize the ranks of the scores (default; robust to outliers), or the raw
+            scores.
+
+    Returns:
+        Series of factor returns by date (per ``horizon`` rows), NaN where too thin.
+    """
+    if min_names > scores.shape[1]:
+        raise ValueError(f"min_names={min_names} exceeds the {scores.shape[1]}-asset universe")
+    fwd = forward_returns(prices, horizon).reindex(index=scores.index, columns=scores.columns)
+    mask = scores.notna() & fwd.notna()
+    x = scores.where(mask)
+    if rank:
+        x = x.rank(axis=1)
+    z = x.sub(x.mean(axis=1), axis=0)
+    denom = (z**2).sum(axis=1)
+    slope = (z * fwd.where(mask)).sum(axis=1) / denom.where(denom > EPS)
+    return slope.where(mask.sum(axis=1) >= min_names).rename("factor_return")
+
+
 @dataclass(slots=True)
 class ICSummary:
     """Aggregate IC statistics. ``horizon`` rows of overlap are accounted for in ``t_stat``."""

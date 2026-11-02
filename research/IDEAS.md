@@ -15,14 +15,14 @@ everything), pension rebalancing (+0.04 against the book), the Treasury auction 
 
 ## Next up
 
-Rows A-C (2026-11-02, from [SYNTHESIS.md](SYNTHESIS.md)) come first; then ranked 2026-11-01 by expected gain x odds x cost, after this run's lessons: a new mechanism
+Ranked 2026-11-01 by expected gain (rows 19-21 from [SYNTHESIS.md](SYNTHESIS.md), 2026-11-02, since closed or deprioritized) x odds x cost, after this run's lessons: a new mechanism
 or a real cost saving has paid; refining the existing tilts, more covariance work, new
 long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 
 | Rank | # | Idea | Why this rank |
 |---|---|---|---|
-| A | 19 | Multi-sleeve harness | The framework fix behind most "strong signal, no gain" results ([SYNTHESIS.md](SYNTHESIS.md)); enables 20 and 21. |
-| B | 20 | Combined cross-sectional sleeve | Several seen-but-unused signals together, index-hedged, buffered; strict bar. |
+| — | 19 | Multi-sleeve harness (deprioritized) | No sleeve to carry yet: the cross-sectional inputs failed the factor-return re-screen (`research_ic_rescreen`). Revisit when a sleeve passes. |
+| — | 20 | Combined cross-sectional sleeve (deprioritized) | Its inputs are an artifact (12-1 momentum) or decayed (5-day reversal). |
 | — | 21 | ~~Fast sleeves~~ (failed; momentum's IC an artifact: screen on payoff-weighted IC) |
 | 1 | 1 | Futures hybrid, step 2 | Cost, not alpha: ~50 bp/yr, ~+0.05 Sharpe, high odds. Blocked on the data choice (IBKR ~2y, or Databento 15y+). Also unlocks sizing the month-end overlays on margin. |
 | — | 14 | ~~FX month-end hedge rebalancing~~ (closed: wrong sign at daily closes) | New flow, the pension overlay's family: foreign holders reset dollar hedges at the month-end fix, sized by the month's US vs foreign equity move (Melvin and Prins 2015); free data. Must add beyond pension. |
