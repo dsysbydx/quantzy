@@ -31,6 +31,28 @@ def test_reports_model_and_stress_vol(bundle):
     assert 0 < summary["model_vol"] < 1 and 0 < summary["stress_vol"] < 1
 
 
+def test_reports_margin_and_stress(bundle):
+    _, summary = run("core_multiasset", None, 3_000_000.0, bundle)
+    m = summary["margin"]
+    assert m["gross"] == pytest.approx(summary["gross_target"])
+    assert 0 < m["maintenance"] < m["cushion"] < 1 and m["drop_to_call"] > 0
+    # the fixture covers 2015-2020: only the 2020 week is replayed, none it does not reach
+    assert set(summary["stress"]) == {"2020-03 crash week"}
+
+
+def test_overlays_shrink_to_keep_gross_under_the_initial_limit(bundle, monkeypatch):
+    from quantzy.jobs import margin as mg
+    from quantzy.strategies import treasury_month_end as tme
+
+    monkeypatch.setattr(tme, "target_after_close", lambda day, bundle=None, current=0.0: 0.9)
+    book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
+    assert summary["overlay_scale"] < 1
+    assert summary["gross_target"] <= mg.REG_T.max_gross - mg.GROSS_BUFFER + 1e-6
+    scaled = 0.9 * summary["overlay_scale"]
+    assert summary["overlays"]["treasury_month_end"] == pytest.approx(scaled)
+    assert any("scaled" in a for a in summary["margin_alerts"])
+
+
 def test_holding_the_target_trades_little(bundle):
     first, _ = run("core_multiasset", None, 3_000_000.0, bundle)
     held = first["target"].drop(core.CASH)

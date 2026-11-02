@@ -21,6 +21,14 @@ over all available data). A big gap means the book leans on unusually low or neg
 correlations; on 2026-10-16 the saved book was 8.8% under the model and 21% under 2008-2025
 correlations. It changes no trade; it is there to look at.
 
+**Margin and stress** (:mod:`quantzy.jobs.margin`). The job estimates the target's Reg T
+position -- gross, borrowing, maintenance requirement, the cushion above it and the fall in
+the long book that would trigger a call -- and replays three past crash weeks on it. If the
+target would exceed 1.95x gross (Reg T's 2x initial limit, less a buffer), it scales the
+overlays down first, so the broker does not reject or trim the orders. Alerts are printed when
+the cushion is thin. The backtests do not apply that scale-back: it binds on 88 of 4,564 days
+(2008-09 .. 2026-10), median factor 0.93, and costs the book about 0.003 Sharpe.
+
 **Funding a new account.** With no holdings the job builds the target the way a backtest
 starts, without the optimizer's no-trade band: from all cash, the band (a 5 bp x 48 penalty
 on both the asset and the cash leg) is larger than most assets' expected return, so a banded
@@ -43,6 +51,7 @@ import pandas as pd
 from quantzy.construction import Portfolio
 from quantzy.data import YFinanceReader
 from quantzy.data.bundle import DataBundle
+from quantzy.jobs import margin as mg
 from quantzy.strategies import get, overlays
 
 #: Orders smaller than this many dollars are dropped (a minimum commission would dominate).
@@ -173,8 +182,20 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
 
     core_target = decision.target.weights.reindex(w_total.index).fillna(0.0)
     model_vol, stress_vol = ex_ante_vols(strategy, bundle, core_target, risky)
+    # Keep the book under the initial-margin limit by shrinking the overlays, not by letting
+    # the broker reject or trim the orders.
+    limit = mg.REG_T.max_gross - mg.GROSS_BUFFER
+    scale = mg.scale_overlays(core_target.drop(cash), overlay_next.drop(cash), limit)
+    overlay_next *= scale
+    per_overlay = {k: v * scale for k, v in per_overlay.items()}
     target = core_target + overlay_next
     target[cash] = 1.0 - target.drop(cash).sum()
+    history = bundle.prices.copy()
+    for ov in ovs:
+        if ov.ASSET not in history:
+            history[ov.ASSET] = ov.asset_prices(bundle)
+    book_margin = mg.margin(target.drop(cash))
+    book_stress = mg.stress(target.drop(cash), history)
     w = w_total
     prices = all_prices(module, window)
     out = pd.DataFrame({"price": prices.reindex(w.index), "current": w, "target": target})
@@ -200,8 +221,25 @@ def run(strategy_name: str = "core_multiasset", holdings: pd.Series | None = Non
         "funding": funding,
         "model_vol": model_vol,
         "stress_vol": stress_vol,
+        "overlay_scale": scale,
+        "margin": book_margin,
+        "stress": book_stress,
+        "margin_alerts": _margin_alerts(book_margin, book_stress, scale),
     }
     return out.assign(order=out.index.isin(orders.index)), summary
+
+
+def _margin_alerts(m: dict, s: dict, scale: float) -> list[str]:
+    alerts = []
+    if scale < 1:
+        alerts.append(f"overlays scaled to {scale:.0%} to keep gross under "
+                      f"{mg.REG_T.max_gross - mg.GROSS_BUFFER:.2f}x (initial margin)")
+    if m["drop_to_call"] < mg.MIN_DROP_TO_CALL:
+        alerts.append(f"a {m['drop_to_call']:.0%} fall in the long book would breach maintenance")
+    for name, x in s.items():
+        if x["cushion"] < mg.MIN_STRESS_CUSHION:
+            alerts.append(f"{name} would leave {x['cushion']:.0%} of NAV above maintenance")
+    return alerts
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -235,6 +273,16 @@ def main(argv: list[str] | None = None) -> None:
             > STRESS_RATIO * summary["model_vol"] else "")
     print(f"ex-ante vol of the target: {summary['model_vol']:.1%} (risk model), "
           f"{summary['stress_vol']:.1%} (long-run correlations){flag}")
+    m = summary["margin"]
+    print(f"margin (Reg T estimate): gross {m['gross']:.2f}x (long {m['long']:.2f}, short "
+          f"{m['short']:.2f}), borrowed {m['borrowed']:.0%} | maintenance {m['maintenance']:.0%}"
+          f", cushion {m['cushion']:.0%} of NAV | margin call if the long book falls "
+          f"{m['drop_to_call']:.0%} | initial margin used {m['initial_used']:.0%}")
+    print("stress, past weeks replayed on the target: " + "; ".join(
+        f"{name} {x['loss']:+.1%} (cushion {x['cushion']:.0%})"
+        for name, x in summary["stress"].items()))
+    for alert in summary["margin_alerts"]:
+        print(f"ALERT: {alert}")
     view = book[["price", "current", "target", "trade_dollars", "trade_shares"]]
     print(view.to_string(formatters={
         "price": "{:,.2f}".format, "current": "{:.1%}".format, "target": "{:.1%}".format,
