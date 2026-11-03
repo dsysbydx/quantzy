@@ -84,6 +84,8 @@ tr.grp th { text-align: center; color: var(--fg); border-bottom: 1px solid var(-
 .presets { display: flex; flex-wrap: wrap; gap: 6px }
 .presets button { font: 500 12px var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 999px; padding: 4px 10px; cursor: pointer }
 .presets button[aria-pressed="true"] { background: var(--s1); border-color: var(--s1); color: var(--panel) }
+.views button { font-weight: 600 }
+.period .vnote { margin: 0; font-size: 12px; color: var(--muted); max-width: 90ch }
 .presets button:focus-visible, .period input:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px }
 ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 75ch }
 </style>
@@ -98,12 +100,15 @@ SR      = equity 0.30 · GLD 0.20 · DBC 0.15 · UUP 0 · IEF/TLT 0.5 × 0.25 + 
 risk    = ewma_blend(5, 20, 60)                           sizing: risk aversion 2, no hard vol limit (~10% vol)
 limits  = long only · max 1.3× gross, borrowed vs T-bills · 20% per ETF as a share of the invested book
 trading = optimizer band 5 bp × 48 on every leg incl. cash · charged 1–5 bp by ETF, cash free · borrow at T-bill + 50 bp
-period  = <span id="period"></span>     train / test split <span id="splitd"></span></div>
+period  = <span id="period"></span>
+periods = <span id="periods"></span></div>
 </header>
 
 <div class="kpis" id="kpis"></div>
 
 <div class="period" role="group" aria-label="Chart period">
+  <div class="row"><span class="lab">History</span><div class="presets views" id="views" role="group" aria-label="History"></div></div>
+  <p class="vnote" id="view-note"></p>
   <div class="row"><span class="lab">Chart period</span><span class="rng" id="win-label"></span></div>
   <div class="presets" id="presets"></div>
   <div class="sliders">
@@ -123,7 +128,7 @@ period  = <span id="period"></span>     train / test split <span id="splitd"></s
   <div class="tw"><table id="winstats"></table></div>
   <div class="legend" id="lg-nav"></div>
   <div class="chart tall"><canvas id="c-nav"></canvas></div>
-  <p class="note">Growth of $1 invested at the start of the chart period, log scale; the table above covers the same period. The dashed line marks the train / test split, where the trend weight and settings were chosen on data before it. The chart period applies to every chart over time; rolling measures still look back their full window, which can reach before the start.</p>
+  <p class="note">Growth of $1 invested at the start of the chart period, log scale; the table above covers the same period. Dashed lines mark the period boundaries: history (proxy data, a sanity check only), train (where the settings were chosen), test, and production (the book as saved for trading). The chart period applies to every chart over time; rolling measures still look back their full window, which can reach before the start.</p>
 </section>
 
 <section>
@@ -199,7 +204,13 @@ period  = <span id="period"></span>     train / test split <span id="splitd"></s
 </section>
 
 <section>
-  <h2><span class="n">12</span>Caveats</h2>
+  <h2><span class="n">12</span>Proxy history</h2>
+  <div class="tw"><table id="proxytab"></table></div>
+  <p class="note">The “with proxies” views extend each ETF back before it listed with the daily returns of what tracked the same exposure, joined so the price levels meet. Each row compares a proxy with its ETF’s own daily returns where both trade: correlation, beta of the ETF on the proxy, vol ratio (proxy over ETF), annual tracking error and annual drift (proxy minus ETF). Fund proxies are net of their fees, indexes gross. Gold before August 2000 is the weakest: no free daily bullion series was available, so it is gold-miner returns hedged of the S&amp;P 500, scaled to gold’s vol and demeaned, which assumes gold had no trend in 1995–2000 (it fell about 28%). Mutual-fund NAVs of foreign stocks are struck at different times from the ETF, which lowers their daily correlation and vol. The strategy, its settings and costs are unchanged; only the data are extended.</p>
+</section>
+
+<section>
+  <h2><span class="n">13</span>Caveats</h2>
   <ul>
     <li>The Treasury prior moves half way to the yield curve's carry (long yield minus the 3-month bill, over long-run vol). The term spread has forecast Treasury excess returns since 1962. In this backtest it mainly cut bonds during the 2022–24 inversion (from 18% to 8% of capital) and lifted test-window Sharpe from 1.07 to 1.14; before 2017 it changed little.</li>
     <li>The dollar value tilt leans toward UUP when DXY is below its 5-year average and away when it is above, because currencies drift back toward purchasing-power parity over years. It was the one value measure that worked here (252-day IC +0.43); equity value (CAPE, regional and sector reversal) lowered Sharpe at the book's horizon and is not used. UUP is a small part of the book, so it adds about 0.02 Sharpe.</li>
@@ -209,7 +220,8 @@ period  = <span id="period"></span>     train / test split <span id="splitd"></s
     <li>The VIX hedge overlay is insurance chosen deliberately, not an alpha that passed the research bar. It is −0.4 correlated with the book, cut the 2020 loss from −8.4% to −5.7%, and costs about 0.4% of NAV a year on average (−5.7% in calm 2017). It did nothing in 2022, the book's worst drawdown, so it lowers Calmar slightly. Its thresholds were the best of a nine-cell grid; expect less than the backtest shows.</li>
     <li>The VRP alpha adds a market-wide equity view: overweight equities when implied variance is high relative to realized. It lifted Sharpe from 1.06 to 1.09 (before the Treasury carry change) and cut the worst drawdown from −18.2% to −16.0%, but about three quarters of its gain came in 2008 and 2021, and before 2008 its evidence on SPY is weak (t 1.1). It does not speed up re-entry after a V-shaped crash: at the March 2020 low it was at its most bearish.</li>
     <li>The trend budget is split between EMA-200 and the EWMAC 64/256 crossover. The crossover forecasts next-day returns better (IC +0.018 against +0.006) but adds no Sharpe in this book. The swap was made on the signal evidence and cut turnover by 14%. Slower trend exits later in a sudden crash: September to October 2008 lost about 3 points more than with EMA-200 alone.</li>
-    <li>The slow crossover needs history until September 2008, so the backtest starts there and misses May to August 2008, when the EMA-200-only book lost 10.7%.</li>
+    <li>On the ETFs' own prices the slow crossover needs history until September 2008, so the “Full actual” view starts there and misses May to August 2008, when the EMA-200-only book lost 10.7%. The proxy views cover it, on proxy data before March 2007.</li>
+    <li>Before September 2008 is out of sample for the settings, which were chosen looking at 2008–2026, but those years also favoured this book: trend's evidence is strongest before 2010 and bonds hedged equities until 2021. Read them as a check that nothing breaks, not as a forecast.</li>
     <li>About 40 configurations were tried before choosing this one. The trend gain held in both the train and test windows and on two risk-model variants, but the exact settings still carry some selection bias.</li>
     <li>The class Sharpe priors are judgment calls. The book holds roughly a third in Treasuries, which helped from 2008 to 2020 and hurt in 2022.</li>
     <li>Risk aversion 2 is a portfolio-level setting. It runs at about 10% vol with today's alphas, but a fixed risk aversion lets vol drift: 9.2% in training, 10.3% in the test window, inside the 8–12% band. Adding alphas will raise it further.</li>
@@ -223,10 +235,15 @@ period  = <span id="period"></span>     train / test split <span id="splitd"></s
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
-const D = __DATA__;
+const ALL = __DATA__;
+let teardown = null;
+function boot(D) {
+if (teardown) teardown();
+const ac = new AbortController(), observers = [];
+let dead = false;
 const N = D.dates.length, Y = 252;
 const dates = D.dates;
-const splitIdx = dates.findIndex(d => d >= D.split);
+const PER = D.periods;  // [{k, label, a, b}]: history (proxies), train, test, production
 const W = { a: 0, b: dates.length - 1 };
 const xf = dates.map(d => { const [y, m, dd] = d.split('-').map(Number); return y + (m - 1) / 12 + (dd - 1) / 365; });
 const SER = [
@@ -286,13 +303,13 @@ function rollCorr(a, b, w) {
 }
 
 const R = D.rets, NAV = Object.fromEntries(Object.entries(R).map(([k, v]) => [k, nav(v)]));
-const ST = Object.fromEntries(SER.map(s => [s.k, { full: stats(R[s.k]), train: stats(R[s.k], 0, splitIdx), test: stats(R[s.k], splitIdx) }]));
+const ST = Object.fromEntries(SER.map(s => [s.k, { full: stats(R[s.k]), ...Object.fromEntries(PER.map(p => [p.k, stats(R[s.k], p.a, p.b + 1)])) }]));
 const MON = Object.fromEntries(SER.map(s => [s.k, monthly(R[s.k])]));
 const yrsTO = Object.values(D.turnover_year), avgTO = yrsTO.reduce((p, x) => p + x, 0) / (N / Y);
 const avgTD = Object.values(D.trade_days_year).reduce((p, x) => p + x, 0) / (N / Y);
 
 document.getElementById('period').textContent = `${dates[0]} .. ${dates[N - 1]} (${(N / Y).toFixed(1)} years)`;
-document.getElementById('splitd').textContent = D.split;
+document.getElementById('periods').textContent = PER.map(p => `${p.k} ${dates[p.a]} .. ${dates[p.b]}`).join(' · ');
 
 // ---- KPI strip ----
 {
@@ -300,7 +317,7 @@ document.getElementById('splitd').textContent = D.split;
   const k = [
     ['CAGR', pct(f.cagr), `baseline ${pct(ST.baseline.full.cagr)}`],
     ['Volatility', pct(f.vol), `baseline ${pct(ST.baseline.full.vol)}`],
-    ['Sharpe, full', num(f.sharpe), `train ${num(ST.strategy.train.sharpe)} · test ${num(ST.strategy.test.sharpe)}`],
+    ['Sharpe, full', num(f.sharpe), PER.map(p => `${p.k} ${num(ST.strategy[p.k].sharpe)}`).join(' · ')],
     ['Max drawdown', pct(f.dd), `calmar ${num(f.calmar)}`],
     ['Beta to QQQ', num(q.beta), `correlation ${num(q.c)}`],
     ['Turnover / year', num(avgTO, 1) + '×', `${avgTD.toFixed(0)} trade days / year`],
@@ -312,12 +329,13 @@ document.getElementById('splitd').textContent = D.split;
 // ---- summary table ----
 {
   const rows = [['CAGR', 'cagr', pct], ['Volatility', 'vol', pct], ['Sharpe', 'sharpe', num], ['Sortino', 'sortino', num], ['Max drawdown', 'dd', pct], ['Calmar', 'calmar', num], ['Skew (daily)', 'skew', num]];
-  let h = '<thead><tr class="grp"><th></th>' + ['Full period', 'Train (before split)', 'Test (after split)'].map(t => `<th colspan="4">${t}</th>`).join('') + '</tr><tr><th>Metric</th>';
-  for (let i = 0; i < 3; i++) h += SER.map(s => `<th>${s.name.split(' (')[0]}</th>`).join('');
+  const G = [['full', 'Full period'], ...PER.map(p => [p.k, p.label])];
+  let h = '<thead><tr class="grp"><th></th>' + G.map(([, t]) => `<th colspan="4">${t}</th>`).join('') + '</tr><tr><th>Metric</th>';
+  for (let i = 0; i < G.length; i++) h += SER.map(s => `<th>${s.name.split(' (')[0]}</th>`).join('');
   h += '</tr></thead><tbody>';
   for (const [lab, key, fmt] of rows) {
     h += `<tr${key === 'sharpe' ? ' class="hl"' : ''}><td>${lab}</td>`;
-    for (const p of ['full', 'train', 'test']) h += SER.map(s => `<td>${fmt(ST[s.k][p][key])}</td>`).join('');
+    for (const [p] of G) h += SER.map(s => `<td>${fmt(ST[s.k][p][key])}</td>`).join('');
     h += '</tr>';
   }
   const extra = [
@@ -327,7 +345,7 @@ document.getElementById('splitd').textContent = D.split;
     ['Correlation with QQQ', s => corr(R[s], R.qqq).c, num],
   ];
   for (const [lab, f, fmt] of extra) {
-    h += `<tr><td>${lab}</td>` + SER.map(s => `<td>${fmt(f(s.k))}</td>`).join('') + '<td colspan="8"></td></tr>';
+    h += `<tr><td>${lab}</td>` + SER.map(s => `<td>${fmt(f(s.k))}</td>`).join('') + `<td colspan="${4 * (G.length - 1)}"></td></tr>`;
   }
   document.getElementById('stats').innerHTML = h + '</tbody>';
 }
@@ -420,8 +438,16 @@ const ROLL = (() => {
 const charts = [];
 const hidden = new Set();
 const ds = (ser, arr, step = 1) => { const n = W.b - W.a + 1, st = Math.max(1, Math.round(step * n / N)), o = []; for (let i = W.a; i <= W.b; i += st) if (arr[i] != null) o.push({ x: xf[i], y: arr[i] }); if ((W.b - W.a) % st && arr[W.b] != null) o.push({ x: xf[W.b], y: arr[W.b] }); return o; };
-const splitX = xf[splitIdx];
-const splitPlugin = { id: 'split', afterDatasetsDraw(c) { if (!c.options.plugins.split || splitIdx < W.a || splitIdx > W.b) return; const xs = c.scales.x, { top, bottom } = c.chartArea, x = xs.getPixelForValue(splitX); const g = c.ctx; g.save(); g.strokeStyle = css('--muted'); g.setLineDash([4, 4]); g.lineWidth = 1; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]); g.fillStyle = css('--muted'); g.font = '11px ' + css('--sans'); g.fillText('train | test', x + 4, top + 12); g.restore(); } };
+const MARKS = PER.slice(1).map((p, i) => [p.a, `${PER[i].k} | ${p.k}`]);
+const splitPlugin = { id: 'split', afterDatasetsDraw(c) {
+  if (!c.options.plugins.split) return;
+  const xs = c.scales.x, { top, bottom } = c.chartArea, g = c.ctx;
+  for (const [i, lab] of MARKS) {
+    if (i < W.a || i > W.b) continue;
+    const x = xs.getPixelForValue(xf[i]);
+    g.save(); g.strokeStyle = css('--muted'); g.setLineDash([4, 4]); g.lineWidth = 1; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]); g.fillStyle = css('--muted'); g.font = '11px ' + css('--sans'); g.fillText(lab, x + 4, top + 12); g.restore();
+  }
+} };
 Chart.register(splitPlugin);
 
 const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -621,8 +647,8 @@ function renderSigHeat() {
   // x ticks
   const tk = xTicks(); g.textAlign = 'center'; g.fillStyle = css('--muted');
   const st = tk.stepSize; for (let v = Math.ceil(x0 / st) * st; v <= x1 + 1e-9; v += st) { const lab = tk.callback(+v.toFixed(6)); if (lab === '') continue; const px = left + (v - x0) / (x1 - x0) * pw; g.fillText(String(lab), px, H - 9); }
-  // split marker
-  if (splitIdx >= W.a && splitIdx <= W.b) { const px = left + (splitX - x0) / (x1 - x0) * pw; g.strokeStyle = css('--fg'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(px, top); g.lineTo(px, H - bottom); g.stroke(); g.setLineDash([]); }
+  // period boundaries
+  for (const [i] of MARKS) { if (i < W.a || i > W.b) continue; const px = left + (xf[i] - x0) / (x1 - x0) * pw; g.strokeStyle = css('--fg'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(px, top); g.lineTo(px, H - bottom); g.stroke(); g.setLineDash([]); }
   sigGeom = { left, pw, cw, cols, rowY, rowH, k };
   // legend scale and note
   const lo = sc.seq ? 0 : sc.lo, hi = sc.hi;
@@ -639,7 +665,7 @@ function renderSigHeat() {
     vrp: 'One market-wide z-score (VIX² minus SPY realized variance) applied to the 12 equity ETFs only, so those rows are identical; other assets have no view. Weight 0.091.',
     weight: 'The resulting position, as a share of capital, sampled weekly.',
   };
-  document.getElementById('sig-note').textContent = notes[sigKey] + ' Rows are grouped by asset class; the dashed line marks the train / test split.';
+  document.getElementById('sig-note').textContent = notes[sigKey] + ' Rows are grouped by asset class; dashed lines mark the period boundaries.';
 }
 {
   const cv = document.getElementById('c-sig'), tip = document.getElementById('sig-tip');
@@ -651,9 +677,9 @@ function renderSigHeat() {
     const val = v == null ? 'no view' : sigKey === 'weight' ? pct(v, 1) : (v * sigGeom.k).toFixed(3);
     tip.innerHTML = `${SG.dates[j]} · <b>${SG.assets[i]}</b><br>${val}`;
     tip.style.display = 'block'; tip.style.left = Math.min(x + 12, r.width - 150) + 'px'; tip.style.top = (y + 12) + 'px';
-  });
-  cv.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-  new ResizeObserver(() => renderSigHeat()).observe(document.getElementById('sig-wrap'));
+  }, { signal: ac.signal });
+  cv.addEventListener('mouseleave', () => { tip.style.display = 'none'; }, { signal: ac.signal });
+  const ro = new ResizeObserver(() => renderSigHeat()); ro.observe(document.getElementById('sig-wrap')); observers.push(ro);
 }
 sigControls();
 
@@ -663,16 +689,19 @@ function renderWinStats() {
   for (const s of SER) { const st = stats(R[s.k], W.a, W.b + 1); h += `<tr${s.k === 'strategy' ? ' class="hl"' : ''}><td>${s.name}</td>` + cols.map(([, k, f]) => `<td class="${k === 'total' || k === 'cagr' ? sgn(st[k]) : ''}">${f(st[k])}</td>`).join('') + '</tr>'; }
   document.getElementById('winstats').innerHTML = h + '</tbody>';
 }
-const MIN_SPAN = 21;
+const MIN_SPAN = 5;  // short enough for a young production period
 const ia = document.getElementById('win-a'), ib = document.getElementById('win-b');
 ia.max = ib.max = N - 1;
-const at = d => Math.max(0, dates.findIndex(x => x >= d));
+const at = d => dates.findIndex(x => x >= d);  // -1 when the view ends before d
 const back = yrs => { const t = new Date(dates[N - 1]); t.setFullYear(t.getFullYear() - yrs); return at(t.toISOString().slice(0, 10)); };
+const upto = d => { const i = at(d); return i < 0 ? -1 : i - 1; };
 const PRESETS = [
-  ['Full', 0, N - 1], ['Train', 0, splitIdx - 1], ['Test', splitIdx, N - 1],
-  ['2008 crisis', 0, at('2009-06-30')], ['Since 2010', at('2010-01-01'), N - 1], ['Since 2015', at('2015-01-01'), N - 1],
+  ['Full', 0, N - 1], ...PER.map(p => [p.label.split(' (')[0], p.a, p.b]),
+  ['Dot-com bust', at('2000-03-01'), upto('2003-01-01')], ['2008 crisis', at('2007-10-01'), upto('2009-07-01')],
+  ['Since 2010', at('2010-01-01'), N - 1], ['Since 2015', at('2015-01-01'), N - 1],
   ['Since 2020', at('2020-01-01'), N - 1], ['2022 to date', at('2022-01-01'), N - 1], ['Last 3 years', back(3), N - 1], ['Last year', back(1), N - 1],
-].filter(([, a, b]) => b - a >= MIN_SPAN);
+].filter(([, a, b]) => a >= 0 && b < N && b - a >= MIN_SPAN)
+  .filter(([, a, b], i, all) => all.findIndex(([, x, y]) => x === a && y === b) === i);
 document.getElementById('presets').innerHTML = PRESETS.map(([l], i) => `<button type="button" data-i="${i}">${l}</button>`).join('');
 document.getElementById('presets').onclick = e => { const b = e.target.closest('button'); if (!b) return; const [, a, z] = PRESETS[+b.dataset.i]; setWin(a, z); };
 let queued = false;
@@ -682,14 +711,39 @@ function setWin(a, b) {
   const yrs = (W.b - W.a + 1) / Y;
   document.getElementById('win-label').textContent = `${dates[W.a]} .. ${dates[W.b]} · ${yrs >= 1 ? yrs.toFixed(1) + ' years' : Math.round(yrs * 12) + ' months'}`;
   document.querySelectorAll('#presets button').forEach(btn => { const [, pa, pb] = PRESETS[+btn.dataset.i]; btn.setAttribute('aria-pressed', pa === W.a && pb === W.b); });
-  if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; render(); }); }
+  if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; if (!dead) render(); }); }
 }
 ia.oninput = () => setWin(+ia.value, Math.max(W.b, +ia.value + MIN_SPAN));
 ib.oninput = () => setWin(Math.min(W.a, +ib.value - MIN_SPAN), +ib.value);
 
 Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+document.getElementById('view-note').textContent = D.note;
 setWin(0, N - 1);
 const mq = matchMedia('(prefers-color-scheme: dark)');
-mq.addEventListener?.('change', render);
-new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+mq.addEventListener?.('change', render, { signal: ac.signal });
+const mo = new MutationObserver(render); mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); observers.push(mo);
+teardown = () => { dead = true; ac.abort(); observers.forEach(o => o.disconnect()); charts.splice(0).forEach(c => c.destroy()); Chart.unregister(splitPlugin); };
+}
+
+// ---- history toggle and proxy table (independent of the view) ----
+{
+  const KEY = 'core_multiasset.view';
+  let cur = ALL.order[0];
+  try { const v = localStorage.getItem(KEY); if (v && ALL.views[v]) cur = v; } catch (e) {}
+  const el = document.getElementById('views');
+  const paint = () => {
+    el.innerHTML = ALL.order.map(k => { const v = ALL.views[k]; return `<button type="button" data-k="${k}" aria-pressed="${k === cur}">${v.label} <span style="font-weight:400;opacity:.75">${v.dates[0].slice(0, 4)}–${v.dates[v.dates.length - 1].slice(0, 4)}</span></button>`; }).join('');
+  };
+  el.onclick = e => {
+    const b = e.target.closest('button'); if (!b || b.dataset.k === cur) return;
+    cur = b.dataset.k; paint(); boot(ALL.views[cur]);
+    try { localStorage.setItem(KEY, cur); } catch (err) {}
+  };
+  paint(); boot(ALL.views[cur]);
+
+  const f = (x, d = 2) => x == null ? '–' : x.toFixed(d), p = x => x == null ? '–' : (x * 100).toFixed(1) + '%';
+  let h = '<thead><tr><th>ETF</th><th>Proxy</th><th>Proxy from</th><th>ETF from</th><th>Correlation</th><th>Beta</th><th>Vol ratio</th><th>Tracking error</th><th>Drift / year</th></tr></thead><tbody>';
+  for (const r of ALL.proxies) h += `<tr><td>${r.etf}</td><td>${r.proxy}</td><td>${r.from}</td><td>${r.etf_from}</td><td>${f(r.corr)}</td><td>${f(r.beta)}</td><td>${f(r.vol_ratio)}</td><td>${p(r.tracking_error)}</td><td class="${r.drift > 0 ? 'pos' : r.drift < 0 ? 'neg' : ''}">${p(r.drift)}</td></tr>`;
+  document.getElementById('proxytab').innerHTML = h + '</tbody>';
+}
 </script>

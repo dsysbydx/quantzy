@@ -103,6 +103,10 @@ uv run python tools/tearsheet/export.py      # -> .cache/tearsheet/core_multiass
 
 ### Sharing the tear-sheet
 
+The page's History toggle switches between the run on the ETFs' own prices (from 2008-09)
+and the run with proxy history from 1995 (`quantzy/strategies/core_proxies.py`): full, since
+2000, and before 2008-09.
+
 The HTML file is for local viewing. The shared copy is a Claude Artifact:
 <https://claude.ai/artifact/KagCis5282eJCN3qJmnim9> (private; share it from the page's
 Share menu). To update it after re-running the export, ask Claude Code to *publish
