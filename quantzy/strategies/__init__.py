@@ -29,6 +29,11 @@ auction overlays (:mod:`treasury_auction`). A strategy lists the overlays it run
 * ``target_after_close(day, bundle, current)`` -- the weight to hold from ``day``'s close,
   given the data and the overlay's current holding (negative for a short);
 * ``backtest_returns(bundle)`` -- its return over cash on the bundle's dates, after costs.
+
+An overlay that sizes on the core book's equity weight sets ``USES_EQUITY = True`` and takes
+an extra ``equity`` argument in both functions: a float (the weight held now) in
+``target_after_close`` and a daily Series in ``backtest_returns``. The daily job and the
+tear-sheet pass it; :mod:`vix_hedge` is the one that does.
 """
 
 from __future__ import annotations

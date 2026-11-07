@@ -191,8 +191,10 @@ class Strategy:
                 up to ``asof``.
             asof: Point in time to decide at. ``None`` means the last row in ``data`` -- the
                 production call. A backtest passes each rebalance date.
-            current: The book held coming into this instant. ``None`` means flat, which is
-                the honest starting state for a fresh backtest but almost never right live.
+            current: The book held coming into this instant. ``None`` means no book yet: all
+                cash, and the target is built without the optimizer's no-trade band (there
+                is nothing to hold still). A backtest's first decision and a newly funded
+                account pass ``None``; every later decision passes the book.
 
         Returns:
             A :class:`Decision` with the target, the trades to reach it, and the ``mu`` and
@@ -208,8 +210,8 @@ class Strategy:
         mu = self.mu(bundle, asof)
         sigma = self.risk_model.covariance(bundle, asof)
 
-        if current is None:
-            current = Portfolio.empty(self.universe.tickers)
+        # No book yet (funding from cash): no current holdings for the no-trade band to anchor
+        # to, so the optimizer builds the target without it. The trades are then from flat.
         result = self.optimizer.optimize(mu, sigma, current=current)
 
         visible = bundle.index if asof is None else bundle.index[bundle.index <= asof]

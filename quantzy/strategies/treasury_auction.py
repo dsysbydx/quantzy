@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from quantzy.config import TRADING_DAYS
+from quantzy.returns import holding_returns
 from quantzy.strategies import treasury_month_end as tme
 
 SIZE = 0.125
@@ -124,13 +125,23 @@ def schedule_end() -> pd.Timestamp:
 
 def in_pre_window(days: pd.DatetimeIndex, dates: pd.DatetimeIndex) -> pd.Series:
     """True on each trading day whose return the overlay earns: the ``PRE`` days ending at
-    an auction day (an auction on a non-trading day counts on the next trading day)."""
-    flag = np.zeros(len(days), dtype=bool)
+    an auction day (an auction on a non-trading day counts on the next trading day).
+
+    ``days`` is extended past its end with the NYSE calendar, so an auction just after the
+    last day still flags the window days before it that ``days`` does hold (a backtest
+    ending inside a window holds the short, as the live rule does)."""
+    if len(days):
+        last = days[-1]
+        ahead = tme.trading_days(last + pd.Timedelta(days=1), last + pd.Timedelta(days=21))
+        full = days.append(ahead[ahead > last])
+    else:
+        full = days
+    flag = np.zeros(len(full), dtype=bool)
     for d in dates:
-        i = days.searchsorted(d)
-        if i < len(days):
+        i = full.searchsorted(d)
+        if i < len(full):
             flag[max(i - PRE + 1, 0): i + 1] = True
-    return pd.Series(flag, index=days)
+    return pd.Series(flag[:len(days)], index=days)
 
 
 def target_after_close(day, term: str, size: float = SIZE) -> float:
@@ -151,7 +162,7 @@ def backtest_returns(bundle, term: str, asset: str, size: float = SIZE) -> pd.Se
     """The overlay's return over cash on the bundle's dates, after costs and short borrow."""
     idx = bundle.index
     held = -size * in_pre_window(idx, auction_dates(term)).astype(float)
-    r = bundle.prices[asset].pct_change(fill_method=None).fillna(0.0)
-    cash = bundle.prices["TBILL"].pct_change(fill_method=None).fillna(0.0)
+    r = holding_returns(bundle.prices[asset]).fillna(0.0)
+    cash = holding_returns(bundle.prices["TBILL"]).fillna(0.0)
     trades = held.diff().abs().fillna(held.abs())
     return held * (r - cash) - trades * COST_BPS / 1e4 - held.abs() * BORROW / TRADING_DAYS

@@ -94,7 +94,8 @@ Outside the package:
 uv sync                                      # create .venv from pyproject + uv.lock
 uv run pytest                                # synthetic data, no network
 
-# production: today's target book and the orders to reach it
+# production: today's target book and the orders to reach it. Run it about 15:35 ET and send
+# the orders market-on-close (that is the backtest's timing); after 16:00 it trades a day late
 uv run python -m quantzy.jobs.daily --nav 3000000 --holdings positions.csv --out orders.csv
 
 # the backtest tear-sheet for the saved strategy

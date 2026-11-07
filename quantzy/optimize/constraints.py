@@ -96,6 +96,53 @@ def max_vol(target: float) -> Constraint:
     return _build
 
 
+def max_group(tickers: Sequence[str], limit: float, of: str = "capital",
+              exclude: Sequence[str] = ()) -> Constraint:
+    """Cap the summed weight of a group of assets, e.g. an asset class.
+
+    ``of="capital"``: ``sum(w_group) <= limit`` (a share of capital, so 1.0 means the group may
+    not be levered). ``of="book"``: ``sum(w_group) <= limit * sum(w_invested)``, a share of the
+    invested book that grows with leverage, as :func:`max_book_share` does for one asset; the
+    invested book is every ticker not in ``exclude`` (exclude cash). Tickers not in the
+    universe are ignored. Assumes a long-only book.
+    """
+    if limit <= 0:
+        raise ValueError(f"limit must be > 0, got {limit}")
+    if of not in ("capital", "book"):
+        raise ValueError(f"of must be 'capital' or 'book', got {of!r}")
+    group = set(tickers)
+
+    def _build(w, ctx):
+        idx = [i for i, t in enumerate(ctx.tickers) if t in group]
+        if not idx:
+            return []
+        if of == "capital":
+            return [ctx.cp.sum(w[idx]) <= limit]
+        inv = [i for i, t in enumerate(ctx.tickers) if t not in set(exclude)]
+        return [ctx.cp.sum(w[idx]) <= limit * ctx.cp.sum(w[inv])]
+
+    return _build
+
+
+def min_group(tickers: Sequence[str], floor: float) -> Constraint:
+    """Hold at least ``floor`` of capital, summed, in a group of assets (e.g. an asset class).
+
+    ``sum(w_group) >= floor``. The optimizer funds it from whatever it likes least, so the
+    rest of the book is still chosen for the best trade-off. Tickers not in the universe are
+    ignored; a group with none of its tickers in the universe adds nothing. The floors of all
+    groups must fit inside the leverage cap, or the problem is infeasible.
+    """
+    if floor <= 0:
+        raise ValueError(f"floor must be > 0, got {floor}")
+    group = set(tickers)
+
+    def _build(w, ctx):
+        idx = [i for i, t in enumerate(ctx.tickers) if t in group]
+        return [ctx.cp.sum(w[idx]) >= floor] if idx else []
+
+    return _build
+
+
 def max_gross(limit: float = 1.0) -> Constraint:
     """Cap gross leverage: ``sum |w_i| <= limit``."""
 

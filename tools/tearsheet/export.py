@@ -101,11 +101,14 @@ def signal_heatmap(b, weights: pd.DataFrame, idx: pd.DatetimeIndex) -> dict:
     return {"dates": [d.strftime("%Y-%m-%d") for d in di], "assets": assets, "series": series}
 
 
-def with_overlays(r: pd.Series, b) -> pd.Series:
-    """The core's returns plus each overlay's excess return over cash, on the same dates."""
+def with_overlays(r: pd.Series, b, weights: pd.DataFrame) -> pd.Series:
+    """The core's returns plus each overlay's excess return over cash, on the same dates.
+    Overlays that size on the book's equity weight (``USES_EQUITY``) get it from ``weights``."""
     out = r.copy()
+    equity = weights.reindex(columns=core.EQUITY).fillna(0.0).sum(axis=1)
     for ov in overlays(core):
-        out = out + ov.backtest_returns(b).reindex(out.index).fillna(0.0)
+        kw = {"equity": equity} if getattr(ov, "USES_EQUITY", False) else {}
+        out = out + ov.backtest_returns(b, **kw).reindex(out.index).fillna(0.0)
     return out
 
 
@@ -113,7 +116,7 @@ def results(data: str, strategy: tuple, baseline: tuple) -> dict:
     """The strategy, baseline and benchmarks over one run's full history."""
     b = LOADERS[data]()
     (r_core, w1, t1, c1), (r0, *_) = strategy, baseline
-    r1 = with_overlays(r_core, b)
+    r1 = with_overlays(r_core, b, w1)
     print(f"{data}: core only Sharpe {r_core.mean() / r_core.std() * np.sqrt(TRADING_DAYS):.2f}")
     equal = FixedWeights(core.UNIVERSE, holdings=core.RISKY,
                          cost_model=LinearCost(0.0, spread_bps=dict(core.EXECUTION_COST_BPS)))
@@ -191,7 +194,10 @@ def export(out: Path) -> dict[str, pd.DataFrame]:
                 for d in LOADERS}
     views = {key: {"label": label, "note": note, **view(runs[data], a, z)}
              for key, label, data, a, z, note in VIEWS}
-    data = {"views": views, "order": [v[0] for v in VIEWS], "proxies": proxy_table()}
+    last = max(runs[d]["rets"].index[-1] for d in LOADERS)
+    data = {"views": views, "order": [v[0] for v in VIEWS], "proxies": proxy_table(),
+            "updated": pd.Timestamp.now().strftime("%Y-%m-%d"),
+            "data_through": last.strftime("%Y-%m-%d")}
     payload = json.dumps(data, default=lambda o: int(o) if isinstance(o, np.integer) else float(o))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(TEMPLATE.read_text().replace("__DATA__", payload))

@@ -37,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from quantzy.config import TRADING_DAYS
+from quantzy.returns import holding_returns
 from quantzy.strategies import treasury_month_end as tme
 
 NAME = "pension_rebalance"
@@ -108,7 +109,7 @@ def backtest_returns(bundle) -> pd.Series:
     entry = window.shift(-1, fill_value=False) & ~window
     signal = z.shift(1).where(entry)  # measured at the close before the entry close
     held = signal.ffill().where(window).map(weight).fillna(0.0)
-    r = spy.pct_change(fill_method=None).fillna(0.0)
-    cash = bundle.prices["TBILL"].pct_change(fill_method=None).fillna(0.0)
+    r = holding_returns(spy).fillna(0.0)
+    cash = holding_returns(bundle.prices["TBILL"]).fillna(0.0)
     trades = held.diff().abs().fillna(held.abs())
     return held * (r - cash) - trades * COST_BPS / 1e4

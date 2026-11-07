@@ -22,6 +22,31 @@ from quantzy.risk import BlendedRisk, ewma_blend
 
 
 @dataclass(frozen=True, slots=True)
+class GroupCap:
+    """A cap on the summed weight of a group of assets (``constraints.max_group``).
+
+    Attributes:
+        tickers: The group, e.g. every equity ETF.
+        limit: The cap, as a share of capital (``of="capital"``) or of the invested book
+            (``of="book"``).
+        of: ``"capital"`` or ``"book"``.
+    """
+
+    tickers: tuple[str, ...]
+    limit: float
+    of: Literal["capital", "book"] = "capital"
+
+
+@dataclass(frozen=True, slots=True)
+class GroupFloor:
+    """A minimum summed weight, as a share of capital, in a group of assets
+    (``constraints.min_group``)."""
+
+    tickers: tuple[str, ...]
+    floor: float
+
+
+@dataclass(frozen=True, slots=True)
 class PortfolioConfig:
     """Book sizing and trading, independent of the alphas.
 
@@ -49,6 +74,9 @@ class PortfolioConfig:
             the optimization; backtests subtract it from returns.
         risk_halflives: Halflives of the EWMA covariances blended into the shared risk model.
         long_only: Forbid short positions in every asset except cash.
+        group_caps: Caps on groups of assets (e.g. an asset class); none by default.
+        group_floors: Minimum holdings in groups of assets, as a share of capital; none by
+            default.
     """
 
     risk_aversion: float = 1.5
@@ -61,6 +89,8 @@ class PortfolioConfig:
     borrow_spread_bps: float = 50.0
     risk_halflives: tuple[float, ...] = field(default=(5, 20, 60))
     long_only: bool = True
+    group_caps: tuple[GroupCap, ...] = ()
+    group_floors: tuple[GroupFloor, ...] = ()
 
     def risk_model(self) -> BlendedRisk:
         return ewma_blend(self.risk_halflives)
@@ -74,6 +104,9 @@ class PortfolioConfig:
         if self.max_position is not None:
             cap = C.max_book_share if self.position_cap_of == "book" else C.max_weight
             cons.append(cap(self.max_position, exclude=(cash,)))
+        cons += [C.max_group(g.tickers, g.limit, of=g.of, exclude=(cash,))
+                 for g in self.group_caps]
+        cons += [C.min_group(g.tickers, g.floor) for g in self.group_floors]
         return MeanVariance(
             risk_aversion=self.risk_aversion,
             constraints=cons,
