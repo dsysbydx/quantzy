@@ -25,6 +25,18 @@ def to_returns(prices: pd.DataFrame, method: str = "simple") -> pd.DataFrame:
     return rets.iloc[1:]
 
 
+def holding_returns(prices: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
+    """Per-period returns of *holding* each asset, for P&L: a missing price inside a series
+    is marked at the last price, so the day earns 0 and the move lands on the next priced day.
+
+    Without the fill, ``pct_change`` (pandas 3 does not pad) leaves both the gap day and the
+    day after it NaN, and a book that counts NaN as 0 loses the move entirely. Only gaps
+    between two prices are filled: before an asset's first price there is no return. The
+    first row is NaN, as from ``pct_change``.
+    """
+    return prices.ffill(limit_area="inside").pct_change(fill_method=None)
+
+
 def align(*frames: pd.DataFrame) -> list[pd.DataFrame]:
     """Inner-join several frames on their index (dates), dropping rows with any NaN."""
     common = None

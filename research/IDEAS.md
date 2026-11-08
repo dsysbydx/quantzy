@@ -271,13 +271,30 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
   value removed, carry instead, and both. Stakes are small (UUP 5-8% of capital; the
   weight x1-x3 moved proxy-history Sharpe 1.201 -> 1.214).
 
+### 23. Breadth: exchange new highs vs new lows (the user's Pine script, 2026-11-05; needs data)
+- **Rule (the user's):** ``hli = highs / (highs + lows) * 100`` from daily new 52-week highs
+  and lows (TradingView HIGN/LOWN, HIGQ/LOWQ, HIGA/LOWA averaged, or MAHN/MALN etc. per
+  exchange); ``com = mean(EMA16, EMA32, EMA64)(hli)``; forecast ``(com - 50) / 50 * 40``,
+  capped at +/-20, sign flipped for gold. A market-wide equity tilt, like VRP.
+- **Prior evidence:** weak to modest. The closest academic result is aggregate nearness to
+  the 52-week high (Li and Yu 2012: the Dow near its 52-week high predicts *higher* market
+  returns, near its all-time high lower). Advance/decline and new highs/lows were among
+  the sentiment measures in Brown and Cliff (2004), which found little short-horizon
+  predictive power. Breadth thrusts (Zweig) are practitioner lore with a handful of events.
+  Our own test of sector breadth vs SPY (`research_credit_breadth`) found it was trend.
+- **Test:** IC on SPY / the equity ETFs at 1, 21 and 63 days; correlation with EWMAC and VRP
+  (the main risk is that it is trend again); then the book at a weight matched to VRP's
+  dispersion. A nearness-to-52-week-high score on SPY (Li and Yu) is the free control: if
+  breadth adds nothing beyond it, the paid data is not needed.
+- **Needs:** daily history of the six series, ideally from before 2008, as CSV.
+
 ## Needs data first
 
 - **Put/call ratio** (a Fear & Greed component). Check Cboe data access first; the other two
   F&G parts we tested (credit, breadth) did not add to trend and VRP.
 - **Daily gold before 2000-08** (LBMA PM fix): would replace the hedged gold-miner proxy
   (0.57 correlated) in the history period. Optional; history is a sanity check only.
-- Ideas 1, 7, 9, 11 and 12 (step 2) above also need data.
+- Ideas 1, 7, 9, 11, 12 (step 2) and 23 above also need data.
 
 ## Portfolio decisions (not alphas)
 
@@ -304,6 +321,10 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 - IBIT / Bitcoin (prior Sharpe 0 if added; "leave IBIT for now").
 - Realized-vol drift outside 8-12% ("leave it for now").
 
+- Rebound detection after drawdowns ("let's park this idea", 2026-11-05): price triggers
+  (`research_rebound`) and yield-curve inversion (`research_curve_inversion`) both failed;
+  the one thing that has helped at lows is VRP. Revisit with breadth (23); insider buying tested and failed (`research_insider`).
+
 ## Monitoring
 
 - **Treasury auction overlays review** (adopted 2026-11-01 at 0.125x, half the tested size;
@@ -313,6 +334,10 @@ long-only assets and trend breadth have not. Numbers are stable ids, not ranks.
 - **Pension rebalancing review** (adopted 2026-10-31 at 0.25x): its Sharpe has fallen by
   period (0.91 / 0.77 / 0.35) since publication; retire it if the trailing three years turn
   negative.
+- **VIX hedge exposure part** (adopted 2026-11-07, ``research_exposure_controls``): watch the
+  equity share. If the book runs above ~110% of capital in equities for months again,
+  revisit a class cap (C3 at 70% of the book had the 1995-2008 evidence; 80-90% are circuit
+  breakers). The hedge alone does not stop concentration building.
 - **VIX hedge review** (adopted 2026-10-19 as insurance by choice): revisit if over about
   three years it costs more than 1.5% of NAV a year without paying off in a spike.
 

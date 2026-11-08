@@ -248,6 +248,41 @@ class TestRiskConstraints:
         assert w["A"] == pytest.approx(0.4 * 1.3, abs=1e-4)  # 52% of capital, above 40%
         assert (w[["A", "B", "C"]] <= 0.4 * book + 1e-6).all()
 
+    def test_max_group_caps_the_group_in_capital_or_book(self):
+        tickers = ["A", "B", "C", "CASH"]
+        mu = pd.Series({"A": 0.10, "B": 0.09, "C": 0.02, "CASH": 0.0})
+        sigma = pd.DataFrame(np.diag([0.04, 0.04, 0.04, 1e-6]), index=tickers, columns=tickers)
+        base = [C.budget(), C.long_only(exclude=("CASH",)), C.max_leverage(1.3, cash="CASH")]
+        for of, cap in (("capital", 0.8), ("book", 0.5)):
+            cons = [*base, C.max_group(["A", "B"], cap, of=of, exclude=("CASH",))]
+            w = MeanVariance(risk_aversion=0.01, constraints=cons).optimize(mu, sigma).weights
+            book = w[["A", "B", "C"]].sum()
+            limit = cap if of == "capital" else cap * book
+            assert w[["A", "B"]].sum() == pytest.approx(limit, abs=1e-4)
+            assert w["C"] > 0.05  # the capped weight goes to the asset outside the group
+
+    def test_min_group_holds_the_floor_in_an_unattractive_group(self):
+        tickers = ["A", "B", "C", "CASH"]
+        mu = pd.Series({"A": 0.10, "B": 0.09, "C": -0.02, "CASH": 0.0})
+        sigma = pd.DataFrame(np.diag([0.04, 0.04, 0.04, 1e-6]), index=tickers, columns=tickers)
+        base = [C.budget(), C.long_only(exclude=("CASH",)), C.max_leverage(1.3, cash="CASH")]
+        w0 = MeanVariance(risk_aversion=0.01, constraints=base).optimize(mu, sigma).weights
+        assert w0["C"] < 1e-4  # without the floor C is not held
+        cons = [*base, C.min_group(["C"], 0.1)]
+        w = MeanVariance(risk_aversion=0.01, constraints=cons).optimize(mu, sigma).weights
+        assert w["C"] == pytest.approx(0.1, abs=1e-4)
+        assert w[["A", "B", "C"]].sum() <= 1.3 + 1e-6
+
+    def test_min_group_rejects_bad_floor(self):
+        with pytest.raises(ValueError):
+            C.min_group(["A"], 0.0)
+
+    def test_max_group_rejects_bad_args(self):
+        with pytest.raises(ValueError):
+            C.max_group(["A"], 0.0)
+        with pytest.raises(ValueError):
+            C.max_group(["A"], 0.5, of="nav")
+
     def test_max_book_share_rejects_bad_limit(self):
         with pytest.raises(ValueError):
             C.max_book_share(0.0)

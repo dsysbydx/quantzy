@@ -30,6 +30,8 @@ Trading
 
 from __future__ import annotations
 
+import datetime
+
 import pandas as pd
 from pandas.tseries.holiday import (
     AbstractHolidayCalendar,
@@ -43,6 +45,8 @@ from pandas.tseries.holiday import (
     nearest_workday,
     sunday_to_monday,
 )
+
+from quantzy.returns import holding_returns
 
 NAME = "treasury_month_end"
 ASSET = "TLT"
@@ -70,11 +74,37 @@ def trading_days(start, end) -> pd.DatetimeIndex:
     return pd.bdate_range(start, end).difference(holidays)
 
 
+def close_time(day) -> datetime.time | None:
+    """The NYSE close on ``day`` (ET), or ``None`` when it is not a trading day.
+
+    13:00 on the regular early-close days -- the Friday after Thanksgiving, Dec 24 and Jul 3
+    when Jul 4 falls Tuesday to Friday, each only when it is itself a trading day -- else
+    16:00. One-off early closes are not modelled."""
+    day = pd.Timestamp(day).normalize()
+    if day not in trading_days(day, day):
+        return None
+    thanksgiving = USThanksgivingDay.dates(day.replace(month=1, day=1),
+                                           day.replace(month=12, day=31))
+    early = ((len(thanksgiving) and day == thanksgiving[0] + pd.Timedelta(days=1))
+             or (day.month == 12 and day.day == 24)
+             or (day.month == 7 and day.day == 3
+                 and pd.Timestamp(day.year, 7, 4).weekday() in (1, 2, 3, 4)))
+    return datetime.time(13) if early else datetime.time(16)
+
+
 def in_window(days: pd.DatetimeIndex) -> pd.Series:
     """True on the last ``DAYS`` trading days of each month in ``days`` (complete months)."""
     s = pd.Series(days, index=days)
     from_end = s.groupby(days.to_period("M")).cumcount(ascending=False)
-    return from_end < DAYS
+    out = from_end < DAYS
+    if len(days):
+        # The last month is complete only if no NYSE trading day of it is left after the data
+        # end; otherwise its "last days" are just the latest rows (a mid-month backtest).
+        last = days[-1]
+        rest = trading_days(last + pd.Timedelta(days=1), last + pd.offsets.MonthEnd(0))
+        if len(rest):
+            out[days.to_period("M") == last.to_period("M")] = False
+    return out
 
 
 def target_after_close(day, bundle=None, current: float = 0.0) -> float:
@@ -94,8 +124,8 @@ def asset_prices(bundle) -> pd.Series:
 
 def backtest_returns(bundle) -> pd.Series:
     """:func:`excess_returns` on the bundle's TLT and cash sleeve."""
-    return excess_returns(asset_prices(bundle).pct_change(fill_method=None),
-                          bundle.prices["TBILL"].pct_change(fill_method=None))
+    return excess_returns(holding_returns(asset_prices(bundle)),
+                          holding_returns(bundle.prices["TBILL"]))
 
 
 def excess_returns(asset_returns: pd.Series, cash_returns: pd.Series) -> pd.Series:

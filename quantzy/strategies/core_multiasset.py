@@ -89,6 +89,13 @@ Snapshot (2008-09-10 .. 2026-10-16, trades charged 1-5 bp by ETF, borrow at T-bi
     return 14.1% against 13.5%, vol 9.8%, max drawdown -15.2% (Dec 2008 - Mar 2009), Calmar
     0.96 against 0.90. Half the tested 0.25x: chosen after a failed full-cycle test, t at the
     bar, 2002-08 the other way; revisit the size from live Sharpe.
+    The VIX hedge sized on equity exposure as well (2026-11-07, ``vix_hedge``, "H2" in
+    ``research_exposure_controls.py``; prices to 2026-11-05): Sharpe 1.408 (train 1.412 /
+    test 1.409) against 1.399, return 14.2%, vol 9.7%, max drawdown -15.1% (unchanged);
+    2026-11-05 -3.2% against -4.4%, 2026 to date +17.5% against +18.1%, drawdown -5.3%
+    against -6.4%. Adopted after the book lost 4.4% on 2026-11-05 at 125% of capital in
+    equities. An equity class cap (``PortfolioConfig.group_caps``) was tested at 70-100% and
+    not adopted (user's call): free over 30 years, but it cost 2026's return.
     Sharpe is return over vol with no cash deduction.
 """
 

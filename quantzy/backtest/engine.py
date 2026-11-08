@@ -26,7 +26,7 @@ import pandas as pd
 
 from quantzy.backtest.book import SimulatedBook
 from quantzy.data.bundle import DataBundle, as_bundle
-from quantzy.returns import to_returns
+from quantzy.returns import holding_returns
 
 if TYPE_CHECKING:
     from quantzy.strategy import Decision, Strategy
@@ -105,7 +105,7 @@ class WalkForwardBacktester:
                 f"got {len(bundle.index)}"
             )
 
-        asset_returns = to_returns(bundle.prices)
+        asset_returns = holding_returns(bundle.prices).iloc[1:]
         tickers = list(strategy.universe.tickers)
         book = SimulatedBook(tickers=tickers, nav=nav)
 
@@ -123,7 +123,9 @@ class WalkForwardBacktester:
             # so it sizes the book that earns ``date``'s return.
             cost = 0.0
             if date in rebal_dates:
-                decision = strategy.decide(bundle, asof=date, current=book.portfolio)
+                # the first decision funds the book from cash, as a new account does
+                decision = strategy.decide(bundle, asof=date,
+                                           current=book.portfolio if decisions else None)
                 cost = book.apply(decision)
                 decisions.append(decision)
 

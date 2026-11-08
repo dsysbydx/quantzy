@@ -23,7 +23,10 @@ def test_from_cash_buys_to_target(bundle):
     assert len(orders) and (orders["trade_dollars"] > 0).all()
     risky = book.drop(index=core.CASH)
     assert risky["target"].abs().sum() == pytest.approx(summary["gross_target"])
-    assert risky["target"].sum() <= core.PORTFOLIO.max_leverage + 1e-6
+    # the core is funded to its full size at once (no band from cash); overlays sit outside
+    # its leverage cap
+    assert risky.loc[core.RISKY, "target"].sum() == pytest.approx(
+        core.PORTFOLIO.max_leverage, abs=1e-4)
 
 
 def test_reports_model_and_stress_vol(bundle):
@@ -44,11 +47,11 @@ def test_overlays_shrink_to_keep_gross_under_the_initial_limit(bundle, monkeypat
     from quantzy.jobs import margin as mg
     from quantzy.strategies import treasury_month_end as tme
 
-    monkeypatch.setattr(tme, "target_after_close", lambda day, bundle=None, current=0.0: 0.9)
+    monkeypatch.setattr(tme, "target_after_close", lambda day, bundle=None, current=0.0: 1.2)
     book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
     assert summary["overlay_scale"] < 1
     assert summary["gross_target"] <= mg.REG_T.max_gross - mg.GROSS_BUFFER + 1e-6
-    scaled = 0.9 * summary["overlay_scale"]
+    scaled = 1.2 * summary["overlay_scale"]
     assert summary["overlays"]["treasury_month_end"] == pytest.approx(scaled)
     assert any("scaled" in a for a in summary["margin_alerts"])
 
@@ -117,6 +120,15 @@ class TestTreasuryMonthEnd:
         assert inside.max() == pytest.approx(tme.SIZE * 0.001)
         assert np.allclose(ex[ex < 0], -tme.SIZE * tme.COST_BPS / 1e4)
 
+    def test_window_skips_an_incomplete_last_month(self):
+        """Data ending mid-month must not mark its latest days as the month's last days."""
+        from quantzy.strategies import treasury_month_end as tme
+
+        idx = pd.bdate_range("2026-10-01", "2026-11-05")
+        w = tme.in_window(idx)
+        assert not w.loc["2026-11"].any()
+        assert list(w[w].index.strftime("%Y-%m-%d")) == ["2026-10-29", "2026-10-30"]
+
     def test_job_adds_the_overlay(self, bundle):
         book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
         assert set(summary["overlays"]) == {"treasury_month_end", "vix_hedge",
@@ -166,6 +178,31 @@ class TestVixHedge:
         assert (r.iloc[:3] == 0).all()
         assert r.iloc[3] == pytest.approx(-vh.SIZE * vh.COST_BPS / 1e4)
         assert r.iloc[4] == pytest.approx(vh.SIZE * 0.01)
+
+    def test_exposure_part_scales_with_equity_and_stops_at_high_vix(self):
+        from quantzy.strategies import vix_hedge as vh
+
+        assert vh.target(False, 20.0, 0.70) == 0.0  # below the 75% floor
+        assert vh.target(False, 20.0, 1.25) == pytest.approx(0.05)
+        assert vh.target(False, 20.0, 1.30) == pytest.approx(0.055)
+        assert vh.target(True, 12.0, 0.90) == vh.SIZE  # the regime's size is larger
+        assert vh.target(False, 31.0, 1.30) == 0.0  # nothing bought at VIX >= 30
+        b = _vix_bundle([20, 20, 20, 20])
+        d = b.index
+        assert vh.target_after_close(d[2], b) == 0.0  # no equity given: regime part only
+        assert vh.target_after_close(d[2], b, equity=1.25) == pytest.approx(0.05)
+
+    def test_backtest_exposure_part_uses_the_equity_held(self):
+        from quantzy.strategies import vix_hedge as vh
+
+        b = _vix_bundle([20, 20, 20, 20, 20], vixy_ret=0.01)
+        eq = pd.Series([0.5, 0.5, 1.25, 1.25, 1.25], index=b.index)
+        r = vh.backtest_returns(b, equity=eq)
+        # equity 1.25 held on day 2 -> 0.05 bought at close 2 (cost) -> earns day 3
+        assert (r.iloc[:2] == 0).all()
+        assert r.iloc[2] == pytest.approx(-0.05 * vh.COST_BPS / 1e4)
+        assert r.iloc[3] == pytest.approx(0.05 * 0.01)
+        assert (vh.backtest_returns(b) == 0).all()  # regime off and no equity: no hedge
 
     def test_job_trades_vixy_outside_the_universe(self, bundle):
         from quantzy.data.bundle import DataBundle
@@ -265,10 +302,14 @@ class TestPensionRebalance:
         panels = {k: b[k] for k in ("vix", "carry", "dollar_value", "vixy")}
         b = DataBundle.build(b.prices, market=market, **panels)
         book, summary = run("core_multiasset", None, 3_000_000.0, b)
-        assert summary["overlays"]["pension_rebalance"] == pytest.approx(-pr.SIZE)
-        assert book.loc[pr.ASSET, "target"] == pytest.approx(-pr.SIZE)
+        # a fully funded 1.3x core plus the month-end overlays passes 1.95x gross, so the
+        # overlays are scaled back (Reg T)
+        size = pr.SIZE * summary["overlay_scale"]
+        assert summary["overlay_scale"] <= 1.0
+        assert summary["overlays"]["pension_rebalance"] == pytest.approx(-size)
+        assert book.loc[pr.ASSET, "target"] == pytest.approx(-size)
         assert book.loc[pr.ASSET, "order"]
-        assert summary["gross_target"] >= book.drop(index=core.CASH)["target"].sum() + pr.SIZE
+        assert summary["gross_target"] >= book.drop(index=core.CASH)["target"].sum() + size
 
 
 class TestTreasuryAuction:
@@ -329,6 +370,25 @@ class TestTreasuryAuction:
         # Veterans Day (Wed 11) is an NYSE trading day: the exit cost lands on it
         assert r.loc["2026-11-11"] < 0 and r.loc["2026-11-12":].eq(0).all()
 
+    def test_data_ending_inside_a_window_holds_the_short(self):
+        """The bug: with data ending on Thu 2026-11-05, before the 11-10 auction, the backtest
+        held nothing on 11-04 and 11-05 while the live rule was short."""
+        from quantzy.data.bundle import DataBundle
+        from quantzy.strategies import treasury_auction as ta
+        from quantzy.strategies import treasury_auction_10y as a10
+        from quantzy.strategies.treasury_month_end import trading_days
+
+        idx = trading_days("2026-10-01", "2026-11-05")
+        self._set(ten=[self.AUCTION])
+        flags = ta.in_pre_window(idx, ta.auction_dates("10-Year"))
+        assert flags.loc["2026-11-04":].all() and not flags.loc[:"2026-11-03"].any()
+        px = pd.DataFrame({"IEF": 100 * 1.001 ** np.arange(len(idx)), "TBILL": 1.0}, index=idx)
+        r = a10.backtest_returns(DataBundle.build(px))
+        assert (r.loc["2026-11-04":] < 0).all()
+        # the backtest's position on each day is the job's target from the close before it
+        for prev, day in zip(idx[:-1], idx[1:], strict=True):
+            assert a10.target_after_close(prev) == (-ta.SIZE if flags[day] else 0.0)
+
     def test_job_adds_the_short_to_the_core(self, bundle):
         from quantzy.strategies import treasury_auction_10y as a10
         from quantzy.strategies.treasury_month_end import trading_days
@@ -349,3 +409,223 @@ class TestTreasuryAuction:
         book, summary = run("core_multiasset", None, 3_000_000.0, bundle)
         assert summary["overlays"]["treasury_month_end"] == 0.5
         assert summary["overlays"]["treasury_auction_30y"] == 0.0
+
+
+class TestExecutionTiming:
+    """The job must decide on the same data the backtest does for the day it trades."""
+
+    def test_preclose_run_matches_the_backtest_decision(self, core_bundle, monkeypatch):
+        """Run before the close of T with T's prices, fill at T's close: the core book is the
+        one the backtest holds through T+1 (``decide(asof=T+1)``, which reads T's close)."""
+        monkeypatch.setattr(core, "OVERLAYS", ())
+        day, nxt = core_bundle.index[-2], core_bundle.index[-1]
+        book, summary = run("core_multiasset", None, 3_000_000.0, core_bundle.upto(day),
+                            execution_day=day)
+        assert summary["preclose"] and summary["execution_day"] == day.date()
+        engine = core.build().decide(core_bundle, asof=nxt).target.weights
+        got = book["target"].reindex(engine.index)
+        # the job reads a shorter window than the backtest, so slow EWMAs differ in the 5th place
+        assert np.allclose(got.to_numpy(), engine.to_numpy(), atol=1e-4)
+
+    def test_decision_reads_the_last_row(self, core_bundle, monkeypatch):
+        """Moving only the last row's prices must move the target (the old job read the row
+        before it, two closes behind the fill)."""
+        monkeypatch.setattr(core, "OVERLAYS", ())
+        day = core_bundle.index[-1]
+        base, _ = run("core_multiasset", None, 3e6, core_bundle, execution_day=day)
+        px = core_bundle.prices.copy()
+        px.loc[day, core.RISKY] *= np.where(np.arange(len(core.RISKY)) % 2, 1.08, 0.92)
+        moved = core_bundle.__class__({**core_bundle, "prices": px})
+        shifted, _ = run("core_multiasset", None, 3e6, moved, execution_day=day)
+        assert (base["target"] - shifted["target"]).abs().max() > 1e-3
+
+    def test_after_close_run_executes_next_day(self, core_bundle):
+        _, summary = run("core_multiasset", None, 3e6, core_bundle)
+        assert not summary["preclose"] and summary["execution_day"] > core_bundle.index[-1].date()
+
+    def test_other_execution_days_are_rejected(self, core_bundle):
+        with pytest.raises(ValueError, match="execution day"):
+            run("core_multiasset", None, 3e6, core_bundle,
+                execution_day=core_bundle.index[-1] + pd.Timedelta(days=10))
+
+    def test_preclose_overlays_hold_from_the_previous_close(self, core_bundle, monkeypatch):
+        """Pre-close, the overlay's 'now' is its target for yesterday's close and its order
+        is for today's; each is asked for exactly those closes."""
+        from quantzy.strategies import treasury_month_end as tme
+
+        asked = []
+        monkeypatch.setattr(tme, "target_after_close",
+                            lambda day, bundle=None, current=0.0: asked.append(day) or 0.0)
+        day = core_bundle.index[-1]
+        run("core_multiasset", pd.Series({"XLK": 0.1}), 3e6, core_bundle, execution_day=day)
+        assert [pd.Timestamp(d) for d in asked] == [core_bundle.index[-2], day]
+
+
+def test_fill_live_row_fills_only_the_last_row(core_bundle):
+    from quantzy.jobs.daily import fill_live_row
+
+    vix = core_bundle["vix"].copy()
+    vix.iloc[-1] = np.nan
+    vix.iloc[-3, 0] = np.nan  # an older gap stays
+    b, filled = fill_live_row(core_bundle.__class__({**core_bundle, "vix": vix}))
+    assert b["vix"].iloc[-1].equals(core_bundle["vix"].iloc[-2])
+    assert np.isnan(b["vix"].iloc[-3, 0]) and all(f.startswith("vix:") for f in filled)
+
+
+class TestSessionClock:
+    """The job's pre-close / after-close call follows the NYSE close, including half days."""
+
+    @pytest.mark.parametrize("day, close", [
+        ("2026-11-27", "13:00"),  # Friday after Thanksgiving
+        ("2026-12-24", "13:00"),  # Thursday
+        ("2025-07-03", "13:00"),  # Jul 4 a Friday
+        ("2023-07-03", "13:00"),  # Jul 4 a Tuesday
+        ("2026-07-02", "16:00"),  # Jul 3 2026 is the observed holiday, no early close
+        ("2027-07-02", "16:00"),  # Jul 4 a Sunday
+        ("2026-11-30", "16:00"),
+        ("2026-12-23", "16:00"),
+    ])
+    def test_close_time(self, day, close):
+        from quantzy.strategies.treasury_month_end import close_time
+
+        assert f"{close_time(day):%H:%M}" == close
+
+    def test_no_close_on_a_holiday_or_weekend(self):
+        from quantzy.strategies.treasury_month_end import close_time
+
+        assert close_time("2026-11-26") is None  # Thanksgiving
+        assert close_time("2026-12-25") is None
+        assert close_time("2026-07-03") is None  # observed Independence Day
+        assert close_time("2026-11-28") is None  # Saturday
+
+    def test_half_day_before_its_close_is_preclose_with_an_early_window(self):
+        from quantzy.jobs.daily import session_state
+
+        s = session_state(pd.Timestamp("2026-11-27 12:40", tz="America/New_York"))
+        assert s.preclose and s.window == ("12:30", "12:50")
+
+    def test_half_day_after_its_close_is_after_close(self):
+        """The bug: 15:45 on a 13:00 day was treated as pre-close, sending MOC orders for a
+        session that had ended."""
+        from quantzy.jobs.daily import session_state
+
+        s = session_state(pd.Timestamp("2026-11-27 15:45", tz="America/New_York"))
+        assert not s.preclose and not s.open_now
+
+    def test_normal_day(self):
+        from quantzy.jobs.daily import session_state
+
+        s = session_state(pd.Timestamp("2026-11-30 15:45", tz="America/New_York"))
+        assert s.preclose and s.window == ("15:30", "15:50")
+        assert not session_state(pd.Timestamp("2026-11-30 16:05", tz="America/New_York")).open_now
+
+    def test_after_close_flag_and_other_timezones(self):
+        from quantzy.jobs.daily import session_state
+
+        s = session_state(pd.Timestamp("2026-11-30 15:45", tz="America/New_York"), True)
+        assert s.open_now and not s.preclose
+        # 20:45 UTC is 15:45 ET in November
+        assert session_state(pd.Timestamp("2026-11-30 20:45", tz="UTC")).preclose
+
+    def test_closed_day(self):
+        from quantzy.jobs.daily import session_state
+
+        s = session_state(pd.Timestamp("2026-11-26 15:45", tz="America/New_York"))
+        assert not s.preclose and s.close is None and s.window is None
+
+
+class TestLivePrices:
+    """A pre-close run fills only index levels; a traded ticker without a live price is
+    fetched on its own, else held unchanged for the day."""
+
+    def _drop_live(self, b, panel, cols):
+        v = b[panel].copy()
+        v.iloc[-1, [v.columns.get_loc(c) for c in cols]] = np.nan
+        return b.__class__({**b, panel: v})
+
+    def test_fill_live_row_leaves_prices_alone(self, core_bundle):
+        from quantzy.jobs.daily import fill_live_row
+
+        b, filled = fill_live_row(self._drop_live(core_bundle, "prices", ["XLK"]))
+        assert np.isnan(b.prices["XLK"].iloc[-1]) and not filled
+
+    def test_missing_etf_is_fetched_on_its_own(self, core_bundle):
+        from quantzy.jobs.daily import repair_live_row
+
+        b = self._drop_live(core_bundle, "prices", ["XLK"])
+        asked = []
+        fixed, fetched, frozen = repair_live_row(
+            core, b, fetch=lambda t, day: asked.append((t, day)) or 123.0)
+        assert asked == [("XLK", b.index[-1])] and fetched == {"XLK": 123.0} and not frozen
+        assert fixed.prices["XLK"].iloc[-1] == 123.0
+
+    def test_overlay_asset_panel_is_repaired_in_every_column(self, core_bundle):
+        from quantzy.jobs.daily import repair_live_row
+
+        b = self._drop_live(core_bundle, "market", list(core_bundle["market"].columns))
+        fixed, fetched, _ = repair_live_row(core, b, fetch=lambda t, day: 500.0)
+        assert fetched == {"SPY": 500.0} and (fixed["market"].iloc[-1] == 500.0).all()
+
+    def test_unfetchable_ticker_is_frozen_at_the_last_close(self, core_bundle):
+        from quantzy.jobs.daily import repair_live_row
+
+        b = self._drop_live(core_bundle, "prices", ["DBC"])
+        fixed, fetched, frozen = repair_live_row(core, b, fetch=lambda t, day: None)
+        assert frozen == ["DBC"] and not fetched
+        assert fixed.prices["DBC"].iloc[-1] == core_bundle.prices["DBC"].iloc[-2]
+
+    def test_run_holds_a_frozen_ticker_and_trades_the_rest(self, core_bundle):
+        held = pd.Series({"XLK": 0.12, "DBC": 0.03, "IEF": 0.1})
+        day = core_bundle.index[-1]
+        free, _ = run("core_multiasset", held, 3e6, core_bundle, execution_day=day)
+        book, summary = run("core_multiasset", held, 3e6, core_bundle, execution_day=day,
+                            frozen=["XLK"])
+        assert abs(free.loc["XLK", "target"] - 0.12) > 1e-3  # it would have traded
+        assert book.loc["XLK", "target"] == pytest.approx(0.12) and not book.loc["XLK", "order"]
+        assert summary["frozen"] == ["XLK"]
+        assert book["target"].sum() == pytest.approx(1.0)  # the difference sits in cash
+        assert book.drop(index="XLK")["order"].any()
+
+    def test_freezing_an_unknown_ticker_is_refused(self, core_bundle):
+        with pytest.raises(ValueError, match="cannot freeze"):
+            run("core_multiasset", None, 3e6, core_bundle, frozen=["ZZZ"])
+
+    def test_flat_today_flags_unchanged_prices(self, core_bundle):
+        from quantzy.jobs.daily import flat_today
+
+        px = core_bundle.prices.copy()
+        for t in ("XLB", "XLE", "XLF", "XLI"):
+            px.loc[px.index[-1], t] = px[t].iloc[-2]
+        b = core_bundle.__class__({**core_bundle, "prices": px})
+        assert flat_today(core, b) == ["XLB", "XLE", "XLF", "XLI"]
+        assert flat_today(core, b, exclude=["XLB"]) == ["XLE", "XLF", "XLI"]
+
+
+class TestHoldingReturns:
+    def test_gap_defers_the_move_instead_of_losing_it(self):
+        from quantzy.returns import holding_returns
+
+        r = holding_returns(pd.Series([np.nan, 100.0, np.nan, 110.0, np.nan]))
+        assert np.isnan(r.iloc[1])  # before the first price: no return
+        assert r.iloc[2] == 0.0 and r.iloc[3] == pytest.approx(0.10)
+        assert np.isnan(r.iloc[4])  # after the last price: not filled
+
+    def test_engine_books_the_whole_move_across_a_gap(self, core_bundle):
+        """A held asset with a one-day gap earns the same over the gap as without it."""
+        from quantzy.backtest import WalkForwardBacktester
+        from quantzy.data.bundle import DataBundle
+
+        def go(p):
+            data = DataBundle({**{k: v.iloc[:1400] for k, v in core_bundle.items()},
+                               "prices": p})
+            return WalkForwardBacktester(rebalance_every=10_000, warmup=1300).run(
+                data, core.build())
+
+        px = core_bundle.prices.iloc[:1400].copy()
+        base = go(px)
+        held = base.weights.iloc[-6].drop(core.CASH).idxmax()  # the largest holding
+        assert base.weights[held].iloc[-6] > 0.05
+        gap = px.copy()
+        gap.iloc[-5, gap.columns.get_loc(held)] = np.nan
+        assert (1 + base.returns).prod() == pytest.approx((1 + go(gap).returns).prod(),
+                                                           rel=1e-12)
